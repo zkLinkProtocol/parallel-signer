@@ -11,7 +11,7 @@ To initialize the project, follow these steps:
 1. Set up the network configuration in the `hardhat.config.ts` file:
 
    ```json
-   polygon: {
+   "polygon": {
      "url": "",
      "accounts": [
        "",

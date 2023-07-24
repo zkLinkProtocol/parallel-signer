@@ -3,3 +3,5 @@ database.db
 .DS_Store
 /dist
 /build
+artifacts
+typechain-types
