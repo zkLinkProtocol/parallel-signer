@@ -158,13 +158,12 @@ export class ParallelSigner extends Wallet {
   async getTransactionReceipt(
     tx: string
   ): Promise<providers.TransactionReceipt> {
-    return await this.mockProviderMethod(
-      "getTransactionReceipt",
-      this.provider.getTransactionReceipt,
-      tx
-    );
+    if (this.mockProvider["getTransactionReceipt"]) {
+      return this.mockProvider["getTransactionReceipt"](tx);
+    }
+    return this.provider.getTransactionReceipt(tx);
   }
-  
+
   //TODO should refactor. At least support two types of log output: info and debug
   private logger = console.log;
   async setLogger(_logger: (...data: any[]) => any) {

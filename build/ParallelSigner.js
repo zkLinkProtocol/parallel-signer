@@ -76,7 +76,10 @@ class ParallelSigner extends ethers_1.Wallet {
     }
     getTransactionReceipt(tx) {
         return __awaiter(this, void 0, void 0, function* () {
-            return yield this.mockProviderMethod("getTransactionReceipt", this.provider.getTransactionReceipt, tx);
+            if (this.mockProvider["getTransactionReceipt"]) {
+                return this.mockProvider["getTransactionReceipt"](tx);
+            }
+            return this.provider.getTransactionReceipt(tx);
         });
     }
     setLogger(_logger) {
