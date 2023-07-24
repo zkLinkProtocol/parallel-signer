@@ -164,6 +164,7 @@ export class ParallelSigner extends Wallet {
       tx
     );
   }
+  
   //TODO should refactor. At least support two types of log output: info and debug
   private logger = console.log;
   async setLogger(_logger: (...data: any[]) => any) {
