@@ -58,9 +58,9 @@ describe("OrderedRequestStore", () => {
       mockPackedTransaction(2)
     );
     const ltx = await requestStore.getLatestPackedTransaction(chainId);
-    expect(ltx.id).toBe(Math.max(setResult, setResult2));
+    expect(ltx?.id).toBe(Math.max(setResult, setResult2));
     const ltx2 = await requestStore.getLatestPackedTransaction(chainId, 1);
-    expect(ltx2.id).toBe(setResult);
+    expect(ltx2?.id).toBe(setResult);
   });
   it("getPackedTransaction should be success", async () => {
     let setResult = await requestStore.setPackedTransaction(
@@ -82,12 +82,12 @@ describe("OrderedRequestStore", () => {
       chainId,
       setResult3
     );
-    expect(setResult2).toBe(mpt.id);
+    expect(setResult2).toBe(mpt?.id);
     const mpt2 = await requestStore.getMaxIDPackedTransaction(
       chainId,
       await requestStore.setPackedTransaction(mockPackedTransaction(2))
     );
-    expect(setResult3).toBe(mpt2.id);
+    expect(setResult3).toBe(mpt2?.id);
   });
 
   it("setPackedTransactionConfirmation should be success", async () => {

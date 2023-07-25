@@ -19,7 +19,7 @@ async function sleep(ms: number) {
 }
 const requestStore = new OrderedRequestStore();
 console.log(hre.config.networks[hre.config.defaultNetwork]);
-const chainId = hre.config.networks[hre.config.defaultNetwork].chainId;
+const chainId = hre.config.networks[hre.config.defaultNetwork].chainId ?? 0;
 beforeEach(async () => {
   await initialDatabaseTables();
   const db = await dbConnect();
@@ -244,9 +244,9 @@ describe("OrderedRequestStore", () => {
       chainId,
       105
     );
-    expect(lpx1.id === lpx2.id).toBeTruthy();
-    expect(lpx1.requestIds.length).toBe(1);
-    expect(_.isEqual(lpx1.requestIds, requestId2)).toBeTruthy();
+    expect(lpx1?.id === lpx2?.id).toBeTruthy();
+    expect(lpx1?.requestIds.length).toBe(1);
+    expect(_.isEqual(lpx1?.requestIds, requestId2)).toBeTruthy();
   });
 
   it("Test with historical data and normal nonce growth, but nonce rollback occurs", async () => {
@@ -287,7 +287,7 @@ describe("OrderedRequestStore", () => {
     {
       let lpx = await signer.requestStore.getLatestPackedTransaction(chainId);
       signer.mockProvider["getTransactionReceipt"] = function (txid) {
-        if (lpx.transactionHash === txid) {
+        if (lpx?.transactionHash === txid) {
           checksignal += 1;
           return {};
         }
@@ -303,7 +303,7 @@ describe("OrderedRequestStore", () => {
     {
       let lpx = await signer.requestStore.getLatestPackedTransaction(chainId);
       signer.mockProvider["getTransactionReceipt"] = function (txid) {
-        if (lpx.transactionHash === txid) {
+        if (lpx?.transactionHash === txid) {
           checksignal += 1;
           return {};
         }
@@ -315,9 +315,9 @@ describe("OrderedRequestStore", () => {
 
     // Perform three consecutive repacks, each with limit = 2, and check the requestid of the last inserted data
     const lpx1 = await signer.requestStore.getLatestPackedTransaction(chainId);
-    expect(lpx1.nonce).toBe(102);
+    expect(lpx1?.nonce).toBe(102);
     expect(
-      _.isEqual(lpx1.requestIds, [requestId1[4], requestId1[5]])
+      _.isEqual(lpx1?.requestIds, [requestId1[4], requestId1[5]])
     ).toBeTruthy();
 
     // Start rolling back nonce
@@ -332,7 +332,7 @@ describe("OrderedRequestStore", () => {
         100
       );
       signer.mockProvider["getTransactionReceipt"] = function (txid) {
-        if (lpx.transactionHash === txid) {
+        if (lpx?.transactionHash === txid) {
           checksignal += 1;
           return {};
         }
@@ -344,9 +344,9 @@ describe("OrderedRequestStore", () => {
 
     // nonce = 100, can be found on the chain, so start packing from position rqs[2]
     let lpx = await signer.requestStore.getLatestPackedTransaction(chainId);
-    expect(lpx.nonce).toBe(101);
+    expect(lpx?.nonce).toBe(101);
     expect(
-      _.isEqual(lpx.requestIds, [requestId1[2], requestId1[3]])
+      _.isEqual(lpx?.requestIds, [requestId1[2], requestId1[3]])
     ).toBeTruthy();
   });
   //
@@ -387,7 +387,7 @@ describe("OrderedRequestStore", () => {
     await signer.__rePack();
 
     signer.mockProvider["getTransactionReceipt"] = function (txid) {
-      if (txid === lpx.transactionHash) {
+      if (txid === lpx?.transactionHash) {
         return { confirmations: getConfirmation(chainId) + 1 };
       }
       return null;
@@ -406,7 +406,7 @@ describe("OrderedRequestStore", () => {
       limit
     );
     requests.forEach(async (v, i) => {
-      expect(v.txId).toBe(lpx.transactionHash);
+      expect(v.txId).toBe(lpx?.transactionHash);
     });
   });
 });
