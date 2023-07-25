@@ -1,6 +1,10 @@
 import "@nomicfoundation/hardhat-toolbox";
-
+import dotenv from "dotenv";
 import { HardhatUserConfig } from "hardhat/config";
+
+dotenv.config({ path: `.env` });
+dotenv.config({ path: `.env.local`, override: true });
+
 const config: HardhatUserConfig = {
   solidity: {
     compilers: [
@@ -30,8 +34,8 @@ const config: HardhatUserConfig = {
       allowUnlimitedContractSize: true,
     },
     polygon: {
-      url: "",
-      accounts: [""],
+      url: process.env.POLYGON_WEB3_URL,
+      accounts: [process.env.POLYGON_WEB3_PRIVATE_KEY],
       chainId: 80001,
     },
   },

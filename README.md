@@ -8,19 +8,14 @@ This project is designed to ...
 
 To initialize the project, follow these steps:
 
-1. Set up the network configuration in the `hardhat.config.ts` file:
+1. Set up the network configuration in the `.env` file:
 
-   ```json
-   "polygon": {
-     "url": "",
-     "accounts": [
-       "",
-     ],
-     "chainId": 80001,
-   }
-   ```
+```
+POLYGON_WEB3_URL=""
+POLYGON_WEB3_PRIVATE_KEY=""
+```
 
-   Note: The `url` should be obtained from chainlist.org for the Polygon testnet RPC node. The `accounts` are the private keys required for deploying test contracts and executing test case. You can export the private keys from Metamask.
+Note: The `POLYGON_WEB3_URL` should be obtained from chainlist.org for the Polygon testnet RPC node. The `POLYGON_WEB3_PRIVATE_KEY` are the private keys required for deploying test contracts and executing test case. You can export the private keys from Metamask.
 
 2. Obtain the gas token for the Polygon testnet.
 

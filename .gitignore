@@ -4,3 +4,4 @@ database.db
 /dist
 artifacts
 /cache
+*.local
