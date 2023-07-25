@@ -1,16 +1,11 @@
-import { BigNumber, BigNumberish, providers } from "ethers";
-import { PackedTransaction, ParallelSigner } from "../src/ParallelSigner";
-import { OrderedRequestStore } from "./OrderedRequestStore";
-import {
-  populateFun1,
-  populateFun2,
-  buildFunctionData1,
-  buildFunctionData2,
-} from "./polulate";
-import * as _ from "lodash";
-import { dbConnect, initialDatabaseTables } from "./db";
-import { getConfirmation } from "../src/confirmation";
+import { providers } from "ethers";
 import hre from "hardhat";
+import * as _ from "lodash";
+import { PackedTransaction, ParallelSigner } from "../src/ParallelSigner";
+import { getConfirmation } from "../src/confirmation";
+import { OrderedRequestStore } from "./OrderedRequestStore";
+import { dbConnect, initialDatabaseTables } from "./db";
+import { buildFunctionData1, populateFun1 } from "./polulate";
 
 async function sleep(ms: number) {
   return new Promise((resolve) => {
@@ -427,10 +422,12 @@ function initParallelSigner(
     hre.config.networks[hre.config.defaultNetwork]["accounts"][0],
     provider,
     requestStore,
-    limit, //limit
     populateFun,
-    delaySecond,
-    15
+    {
+      requestCountLimit: limit,
+      delayedSecond: delaySecond,
+      checkPackedTransactionIntervalSecond: 15,
+    }
   );
   return parallelSigner;
 }

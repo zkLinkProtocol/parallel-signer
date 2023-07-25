@@ -1,14 +1,14 @@
-import { BigNumberish, Wallet, providers, BigNumber } from "ethers";
 import { Provider, TransactionRequest } from "@ethersproject/abstract-provider";
-import { SigningKey } from "@ethersproject/signing-key";
-import { defineReadOnly } from "@ethersproject/properties";
 import { ExternallyOwnedAccount } from "@ethersproject/abstract-signer";
 import { BytesLike } from "@ethersproject/bytes";
 import { keccak256 } from "@ethersproject/keccak256";
+import { defineReadOnly } from "@ethersproject/properties";
+import { SigningKey } from "@ethersproject/signing-key";
+import { BigNumber, BigNumberish, Wallet, providers } from "ethers";
 import {
+  __setTimeoutConfig,
   getConfirmation,
   getTimeout,
-  __setTimeoutConfig,
 } from "./confirmation";
 
 // Description of the Request table in the database
@@ -74,16 +74,22 @@ export abstract class IOrderedRequestStore {
   abstract setPackedTransactionConfirmation(id: number, confirmation: number);
 }
 
+export interface ParallelSignerOptions {
+  readonly requestCountLimit: number;
+  readonly delayedSecond: number;
+  readonly checkPackedTransactionIntervalSecond: number;
+}
+
 //requestCountLimit: maximum number of requests in a PackedTx
 //delayedSecond: maximum delay for a request to be packed, to wait for more transactions to be included in a PackedTx and avoid frequent rePacking that may result in high gas price.
 // If delayedSecond = 0, make sure not to call sendTransactions frequently, otherwise frequent rePacking will occur.
 export class ParallelSigner extends Wallet {
   readonly chainId: number;
+  options: ParallelSignerOptions;
   constructor(
     privateKey: BytesLike | ExternallyOwnedAccount | SigningKey,
     provider: providers.JsonRpcProvider,
     readonly requestStore: IOrderedRequestStore,
-    readonly requestCountLimit: number,
     private populateFun: (requests: Request[]) => Promise<{
       to: string;
       data: string;
@@ -93,10 +99,16 @@ export class ParallelSigner extends Wallet {
       maxPriorityFeePerGas?: string;
       gasPrice?: string;
     }>,
-    readonly delayedSecond: number = 0,
-    readonly checkPackedTransactionIntervalSecond: number = 15
+    options: Partial<ParallelSignerOptions> = {}
   ) {
     super(privateKey, provider);
+
+    this.options = {
+      requestCountLimit: 10,
+      delayedSecond: 0,
+      checkPackedTransactionIntervalSecond: 15,
+      ...options,
+    };
 
     if (provider && !Provider.isProvider(provider)) {
       throw Error("invalid provider");
@@ -172,12 +184,12 @@ export class ParallelSigner extends Wallet {
   async init() {
     this.timeHandler[0] = setInterval(async () => {
       await this.checkPackedTransaction();
-    }, this.checkPackedTransactionIntervalSecond * 1000);
+    }, this.options.checkPackedTransactionIntervalSecond * 1000);
 
     const intervalTime =
-      this.delayedSecond === 0
+      this.options.delayedSecond === 0
         ? getTimeout(this.chainId) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
-        : this.delayedSecond;
+        : this.options.delayedSecond;
     this.timeHandler[1] = setInterval(async () => {
       const requests = await this.rePackedTransaction();
       const currentNonce: number = await this.getTransactionCount("latest");
@@ -228,7 +240,7 @@ export class ParallelSigner extends Wallet {
 
     // When there is no delay, only process transactions within the limit of the requestCountLimit for this batch. Others will be stored in the database and processed by the scheduled task.
     // The requests may exceed the limit, but the rePackedTransaction method will handle the limit
-    if (this.delayedSecond == 0) {
+    if (this.options.delayedSecond == 0) {
       const rePackedRequests = await this.rePackedTransaction();
       await this.sendPackedTransaction(rePackedRequests, currentNonce);
     }
@@ -253,10 +265,10 @@ export class ParallelSigner extends Wallet {
         let rqx = await this.requestStore.getRequests(
           this.chainId,
           maxid + 1,
-          this.requestCountLimit
+          this.options.requestCountLimit
         );
         if (
-          latestPackedTx.requestIds.length < this.requestCountLimit &&
+          latestPackedTx.requestIds.length < this.options.requestCountLimit &&
           rqx.length > 0
         ) {
           this.logger("NEW DATA REPACK");
@@ -339,7 +351,7 @@ export class ParallelSigner extends Wallet {
     let storedRequest = await this.requestStore.getRequests(
       this.chainId,
       minimalId + 1,
-      this.requestCountLimit
+      this.options.requestCountLimit
     );
     return storedRequest;
   }
