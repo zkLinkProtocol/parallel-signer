@@ -10,11 +10,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ParallelSigner = exports.IOrderedRequestStore = void 0;
-const ethers_1 = require("ethers");
 const abstract_provider_1 = require("@ethersproject/abstract-provider");
-const properties_1 = require("@ethersproject/properties");
 const keccak256_1 = require("@ethersproject/keccak256");
-const confirmation_1 = require("./confirmation");
+const properties_1 = require("@ethersproject/properties");
+const ethers_1 = require("ethers");
+const timer_1 = require("./timer");
 class IOrderedRequestStore {
 }
 exports.IOrderedRequestStore = IOrderedRequestStore;
@@ -22,18 +22,16 @@ exports.IOrderedRequestStore = IOrderedRequestStore;
 //delayedSecond: maximum delay for a request to be packed, to wait for more transactions to be included in a PackedTx and avoid frequent rePacking that may result in high gas price.
 // If delayedSecond = 0, make sure not to call sendTransactions frequently, otherwise frequent rePacking will occur.
 class ParallelSigner extends ethers_1.Wallet {
-    constructor(privateKey, provider, requestStore, requestCountLimit, populateFun, delayedSecond = 0, checkPackedTransactionIntervalSecond = 15) {
+    constructor(privateKey, provider, requestStore, populateFun, options = {}) {
         var _a, _b, _c, _d, _e;
         super(privateKey, provider);
         this.requestStore = requestStore;
-        this.requestCountLimit = requestCountLimit;
         this.populateFun = populateFun;
-        this.delayedSecond = delayedSecond;
-        this.checkPackedTransactionIntervalSecond = checkPackedTransactionIntervalSecond;
         this.mockProvider = {}; //TODO only for test,
         //TODO should refactor. At least support two types of log output: info and debug
         this.logger = console.log;
         this.timeHandler = [];
+        this.options = Object.assign({ requestCountLimit: 10, delayedSecond: 0, checkPackedTransactionIntervalSecond: 15, confirmations: 64 }, options);
         if (provider && !abstract_provider_1.Provider.isProvider(provider)) {
             throw Error("invalid provider");
         }
@@ -91,10 +89,10 @@ class ParallelSigner extends ethers_1.Wallet {
         return __awaiter(this, void 0, void 0, function* () {
             this.timeHandler[0] = setInterval(() => __awaiter(this, void 0, void 0, function* () {
                 yield this.checkPackedTransaction();
-            }), this.checkPackedTransactionIntervalSecond * 1000);
-            const intervalTime = this.delayedSecond === 0
-                ? (0, confirmation_1.getTimeout)(this.chainId) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
-                : this.delayedSecond;
+            }), this.options.checkPackedTransactionIntervalSecond * 1000);
+            const intervalTime = this.options.delayedSecond === 0
+                ? (0, timer_1.getTimeout)(this.chainId) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
+                : this.options.delayedSecond;
             this.timeHandler[1] = setInterval(() => __awaiter(this, void 0, void 0, function* () {
                 const requests = yield this.rePackedTransaction();
                 const currentNonce = yield this.getTransactionCount("latest");
@@ -123,7 +121,7 @@ class ParallelSigner extends ethers_1.Wallet {
     }
     __setTimeout(chainId, timeout) {
         return __awaiter(this, void 0, void 0, function* () {
-            (0, confirmation_1.__setTimeoutConfig)(chainId, timeout);
+            (0, timer_1.__setTimeoutConfig)(chainId, timeout);
         });
     }
     sendTransactions(txs) {
@@ -143,7 +141,7 @@ class ParallelSigner extends ethers_1.Wallet {
             const res = yield this.requestStore.setRequests(requests);
             // When there is no delay, only process transactions within the limit of the requestCountLimit for this batch. Others will be stored in the database and processed by the scheduled task.
             // The requests may exceed the limit, but the rePackedTransaction method will handle the limit
-            if (this.delayedSecond == 0) {
+            if (this.options.delayedSecond == 0) {
                 const rePackedRequests = yield this.rePackedTransaction();
                 yield this.sendPackedTransaction(rePackedRequests, currentNonce);
             }
@@ -163,8 +161,8 @@ class ParallelSigner extends ethers_1.Wallet {
                     // If there are no new requests, wait. If there are new requests, repack.
                     // If the current nonce has not been successfully confirmed on the chain, repacking should not continue. It should wait for the checkPackedTransaction timer to execute.
                     let maxid = Math.max(...latestPackedTx.requestIds);
-                    let rqx = yield this.requestStore.getRequests(this.chainId, maxid + 1, this.requestCountLimit);
-                    if (latestPackedTx.requestIds.length < this.requestCountLimit &&
+                    let rqx = yield this.requestStore.getRequests(this.chainId, maxid + 1, this.options.requestCountLimit);
+                    if (latestPackedTx.requestIds.length < this.options.requestCountLimit &&
                         rqx.length > 0) {
                         this.logger("NEW DATA REPACK");
                         // If the limit is not reached and new data comes in, and this function has been called externally, it means that the repack action can be performed
@@ -173,8 +171,8 @@ class ParallelSigner extends ethers_1.Wallet {
                     else {
                         // If there is no new data or the limit has been reached, check if it has timed out
                         let gapTime = new Date().getTime() - ((_a = latestPackedTx.createdAt) !== null && _a !== void 0 ? _a : 0);
-                        this.logger(`gapTime: ${gapTime}  timeout: ${(0, confirmation_1.getTimeout)(this.chainId)} createdAt: ${latestPackedTx.createdAt}`);
-                        if (gapTime > (0, confirmation_1.getTimeout)(this.chainId)) {
+                        this.logger(`gapTime: ${gapTime}  timeout: ${(0, timer_1.getTimeout)(this.chainId)} createdAt: ${latestPackedTx.createdAt}`);
+                        if (gapTime > (0, timer_1.getTimeout)(this.chainId)) {
                             // Timeout
                             this.logger("TIMEOUT REPACK");
                             minimalId = Math.min(...latestPackedTx.requestIds) - 1;
@@ -228,7 +226,7 @@ class ParallelSigner extends ethers_1.Wallet {
                     }
                 }
             }
-            let storedRequest = yield this.requestStore.getRequests(this.chainId, minimalId + 1, this.requestCountLimit);
+            let storedRequest = yield this.requestStore.getRequests(this.chainId, minimalId + 1, this.options.requestCountLimit);
             return storedRequest;
         });
     }
@@ -354,10 +352,10 @@ class ParallelSigner extends ethers_1.Wallet {
             let result = Math.min(...packedTxs.map((v) => { var _a; return (_a = v.id) !== null && _a !== void 0 ? _a : 0; })); // Find the minimum id
             for (let k in packedTxs) {
                 let v = packedTxs[k];
-                if (v.confirmation < (0, confirmation_1.getConfirmation)(this.chainId)) {
+                if (v.confirmation < this.options.confirmations) {
                     let txRcpt = yield this.getTransactionReceipt(v.transactionHash);
                     if (txRcpt != null) {
-                        if (txRcpt.confirmations >= (0, confirmation_1.getConfirmation)(this.chainId)) {
+                        if (txRcpt.confirmations >= this.options.confirmations) {
                             // Set request txid by v.txhash
                             yield this.requestStore.updateRequestBatch(v.requestIds, v.transactionHash);
                             // If data satisfying the confirmation requirement is found, return 0 to stop further searching

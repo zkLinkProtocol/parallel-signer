@@ -5,11 +5,7 @@ import { keccak256 } from "@ethersproject/keccak256";
 import { defineReadOnly } from "@ethersproject/properties";
 import { SigningKey } from "@ethersproject/signing-key";
 import { BigNumber, BigNumberish, Wallet, providers } from "ethers";
-import {
-  __setTimeoutConfig,
-  getConfirmation,
-  getTimeout,
-} from "./confirmation";
+import { __setTimeoutConfig, getTimeout } from "./timer";
 
 // Description of the Request table in the database
 export interface Request {
@@ -75,9 +71,10 @@ export abstract class IOrderedRequestStore {
 }
 
 export interface ParallelSignerOptions {
-  readonly requestCountLimit: number;
-  readonly delayedSecond: number;
-  readonly checkPackedTransactionIntervalSecond: number;
+  readonly requestCountLimit: number; // default: 10
+  readonly delayedSecond: number; // default: 0
+  readonly checkPackedTransactionIntervalSecond: number; // default: 15
+  readonly confirmations: number; // default: 64
 }
 
 //requestCountLimit: maximum number of requests in a PackedTx
@@ -107,6 +104,7 @@ export class ParallelSigner extends Wallet {
       requestCountLimit: 10,
       delayedSecond: 0,
       checkPackedTransactionIntervalSecond: 15,
+      confirmations: 64,
       ...options,
     };
 
@@ -500,11 +498,11 @@ export class ParallelSigner extends Wallet {
     let result = Math.min(...packedTxs.map((v) => v.id ?? 0)); // Find the minimum id
     for (let k in packedTxs) {
       let v = packedTxs[k];
-      if (v.confirmation < getConfirmation(this.chainId)) {
+      if (v.confirmation < this.options.confirmations) {
         let txRcpt = await this.getTransactionReceipt(v.transactionHash);
 
         if (txRcpt != null) {
-          if (txRcpt.confirmations >= getConfirmation(this.chainId)) {
+          if (txRcpt.confirmations >= this.options.confirmations) {
             // Set request txid by v.txhash
             await this.requestStore.updateRequestBatch(
               v.requestIds,

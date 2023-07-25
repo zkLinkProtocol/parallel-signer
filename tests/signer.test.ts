@@ -2,7 +2,6 @@ import { providers } from "ethers";
 import hre from "hardhat";
 import * as _ from "lodash";
 import { PackedTransaction, ParallelSigner } from "../src/ParallelSigner";
-import { getConfirmation } from "../src/confirmation";
 import { OrderedRequestStore } from "./OrderedRequestStore";
 import { dbConnect, initialDatabaseTables } from "./db";
 import { buildFunctionData1, populateFun1 } from "./polulate";
@@ -383,7 +382,7 @@ describe("OrderedRequestStore", () => {
 
     signer.mockProvider["getTransactionReceipt"] = function (txid) {
       if (txid === lpx?.transactionHash) {
-        return { confirmations: getConfirmation(chainId) + 1 };
+        return { confirmations: signer.options.confirmations + 1 };
       }
       return null;
     };

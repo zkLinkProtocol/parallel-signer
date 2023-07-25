@@ -1,8 +1,8 @@
-import { BigNumberish, Wallet, providers } from "ethers";
 import { TransactionRequest } from "@ethersproject/abstract-provider";
-import { SigningKey } from "@ethersproject/signing-key";
 import { ExternallyOwnedAccount } from "@ethersproject/abstract-signer";
 import { BytesLike } from "@ethersproject/bytes";
+import { SigningKey } from "@ethersproject/signing-key";
+import { BigNumberish, Wallet, providers } from "ethers";
 export interface Request {
     id?: number;
     functionData: string;
@@ -33,14 +33,18 @@ export declare abstract class IOrderedRequestStore {
     abstract getMaxIDPackedTransaction(chainId: number, maxId: number): Promise<PackedTransaction | null>;
     abstract setPackedTransactionConfirmation(id: number, confirmation: number): any;
 }
-export declare class ParallelSigner extends Wallet {
-    readonly requestStore: IOrderedRequestStore;
+export interface ParallelSignerOptions {
     readonly requestCountLimit: number;
-    private populateFun;
     readonly delayedSecond: number;
     readonly checkPackedTransactionIntervalSecond: number;
+    readonly confirmations: number;
+}
+export declare class ParallelSigner extends Wallet {
+    readonly requestStore: IOrderedRequestStore;
+    private populateFun;
     readonly chainId: number;
-    constructor(privateKey: BytesLike | ExternallyOwnedAccount | SigningKey, provider: providers.JsonRpcProvider, requestStore: IOrderedRequestStore, requestCountLimit: number, populateFun: (requests: Request[]) => Promise<{
+    options: ParallelSignerOptions;
+    constructor(privateKey: BytesLike | ExternallyOwnedAccount | SigningKey, provider: providers.JsonRpcProvider, requestStore: IOrderedRequestStore, populateFun: (requests: Request[]) => Promise<{
         to: string;
         data: string;
         value?: BigNumberish;
@@ -48,7 +52,7 @@ export declare class ParallelSigner extends Wallet {
         maxFeePerGas?: string;
         maxPriorityFeePerGas?: string;
         gasPrice?: string;
-    }>, delayedSecond?: number, checkPackedTransactionIntervalSecond?: number);
+    }>, options?: Partial<ParallelSignerOptions>);
     mockProvider: {};
     sendRawTransaction(transaction: TransactionRequest, rawTx: string, packedTx: PackedTransaction): Promise<providers.TransactionResponse>;
     mockProviderMethod(methodName: string, defaultMethod: Function, ...args: any[]): Promise<any>;
