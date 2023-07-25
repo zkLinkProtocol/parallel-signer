@@ -3,3 +3,4 @@ database.db
 .DS_Store
 /dist
 artifacts
+/cache
