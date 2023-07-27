@@ -31,6 +31,8 @@ class ParallelSigner extends ethers_1.Wallet {
         //TODO should refactor. At least support two types of log output: info and debug
         this.logger = console.log;
         this.timeHandler = [];
+        // Each repacked transaction should be an independent process, discovering the current state on the chain, checking the progress in the database, and finding the correct starting position for the request
+        this.repacking = false;
         this.options = Object.assign({ requestCountLimit: 10, delayedSecond: 0, checkPackedTransactionIntervalSecond: 15, confirmations: 64 }, options);
         if (provider && !abstract_provider_1.Provider.isProvider(provider)) {
             throw Error("invalid provider");
@@ -148,8 +150,17 @@ class ParallelSigner extends ethers_1.Wallet {
             return res;
         });
     }
-    // Each repacked transaction should be an independent process, discovering the current state on the chain, checking the progress in the database, and finding the correct starting position for the request
     rePackedTransaction() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.repacking)
+                return [];
+            this.repacking = true;
+            const requests = yield this.getRepackRequests();
+            this.repacking = false;
+            return requests;
+        });
+    }
+    getRepackRequests() {
         var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
             let latestPackedTx = yield this.requestStore.getLatestPackedTransaction(this.chainId);

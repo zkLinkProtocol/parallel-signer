@@ -245,8 +245,15 @@ export class ParallelSigner extends Wallet {
     return res;
   }
   // Each repacked transaction should be an independent process, discovering the current state on the chain, checking the progress in the database, and finding the correct starting position for the request
-
+  private repacking = false;
   private async rePackedTransaction(): Promise<Request[]> {
+    if (this.repacking) return [];
+    this.repacking = true;
+    const requests = await this.getRepackRequests();
+    this.repacking = false;
+    return requests;
+  }
+  private async getRepackRequests(): Promise<Request[]> {
     let latestPackedTx = await this.requestStore.getLatestPackedTransaction(
       this.chainId
     );

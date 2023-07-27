@@ -70,7 +70,9 @@ export declare class ParallelSigner extends Wallet {
         functionData: string;
         logId: number;
     }[]): Promise<number[]>;
+    private repacking;
     private rePackedTransaction;
+    private getRepackRequests;
     /**
      * Sends a packed transaction to the blockchain.
      *
