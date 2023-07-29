@@ -96,9 +96,7 @@ class ParallelSigner extends ethers_1.Wallet {
                 ? (0, timer_1.getTimeout)(this.chainId) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
                 : this.options.delayedSecond;
             this.timeHandler[1] = setInterval(() => __awaiter(this, void 0, void 0, function* () {
-                const requests = yield this.rePackedTransaction();
-                const currentNonce = yield this.getTransactionCount("latest");
-                yield this.sendPackedTransaction(requests, currentNonce);
+                yield this.rePackedTransaction();
             }), intervalTime * 1000);
         });
     }
@@ -111,9 +109,7 @@ class ParallelSigner extends ethers_1.Wallet {
     }
     __rePack() {
         return __awaiter(this, void 0, void 0, function* () {
-            const requests = yield this.rePackedTransaction();
-            const currentNonce = yield this.getTransactionCount("latest");
-            yield this.sendPackedTransaction(requests, currentNonce);
+            yield this.rePackedTransaction();
         });
     }
     __checkPackedTx() {
@@ -128,7 +124,6 @@ class ParallelSigner extends ethers_1.Wallet {
     }
     sendTransactions(txs) {
         return __awaiter(this, void 0, void 0, function* () {
-            const currentNonce = yield this.getTransactionCount("latest");
             if (!txs || txs.length == 0) {
                 return;
             }
@@ -144,8 +139,7 @@ class ParallelSigner extends ethers_1.Wallet {
             // When there is no delay, only process transactions within the limit of the requestCountLimit for this batch. Others will be stored in the database and processed by the scheduled task.
             // The requests may exceed the limit, but the rePackedTransaction method will handle the limit
             if (this.options.delayedSecond == 0) {
-                const rePackedRequests = yield this.rePackedTransaction();
-                yield this.sendPackedTransaction(rePackedRequests, currentNonce);
+                yield this.rePackedTransaction();
             }
             return res;
         });
@@ -153,11 +147,13 @@ class ParallelSigner extends ethers_1.Wallet {
     rePackedTransaction() {
         return __awaiter(this, void 0, void 0, function* () {
             if (this.repacking)
-                return [];
+                return null;
             this.repacking = true;
+            const currentNonce = yield this.getTransactionCount("latest");
             const requests = yield this.getRepackRequests();
+            yield this.sendPackedTransaction(requests, currentNonce);
             this.repacking = false;
-            return requests;
+            return true;
         });
     }
     getRepackRequests() {

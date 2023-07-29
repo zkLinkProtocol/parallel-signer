@@ -189,9 +189,7 @@ export class ParallelSigner extends Wallet {
         ? getTimeout(this.chainId) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
         : this.options.delayedSecond;
     this.timeHandler[1] = setInterval(async () => {
-      const requests = await this.rePackedTransaction();
-      const currentNonce: number = await this.getTransactionCount("latest");
-      await this.sendPackedTransaction(requests, currentNonce);
+      await this.rePackedTransaction();
     }, intervalTime * 1000);
   }
 
@@ -203,9 +201,7 @@ export class ParallelSigner extends Wallet {
   }
 
   async __rePack() {
-    const requests = await this.rePackedTransaction();
-    const currentNonce: number = await this.getTransactionCount("latest");
-    await this.sendPackedTransaction(requests, currentNonce);
+    await this.rePackedTransaction();
   }
 
   async __checkPackedTx() {
@@ -221,8 +217,6 @@ export class ParallelSigner extends Wallet {
       logId: number;
     }[]
   ): Promise<number[]> {
-    const currentNonce: number = await this.getTransactionCount("latest");
-
     if (!txs || txs.length == 0) {
       return;
     }
@@ -239,19 +233,21 @@ export class ParallelSigner extends Wallet {
     // When there is no delay, only process transactions within the limit of the requestCountLimit for this batch. Others will be stored in the database and processed by the scheduled task.
     // The requests may exceed the limit, but the rePackedTransaction method will handle the limit
     if (this.options.delayedSecond == 0) {
-      const rePackedRequests = await this.rePackedTransaction();
-      await this.sendPackedTransaction(rePackedRequests, currentNonce);
+      await this.rePackedTransaction();
     }
     return res;
   }
+
   // Each repacked transaction should be an independent process, discovering the current state on the chain, checking the progress in the database, and finding the correct starting position for the request
   private repacking = false;
-  private async rePackedTransaction(): Promise<Request[]> {
-    if (this.repacking) return [];
+  private async rePackedTransaction(): Promise<true | null> {
+    if (this.repacking) return null;
     this.repacking = true;
+    const currentNonce: number = await this.getTransactionCount("latest");
     const requests = await this.getRepackRequests();
+    await this.sendPackedTransaction(requests, currentNonce);
     this.repacking = false;
-    return requests;
+    return true;
   }
   private async getRepackRequests(): Promise<Request[]> {
     let latestPackedTx = await this.requestStore.getLatestPackedTransaction(

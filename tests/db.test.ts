@@ -2,8 +2,8 @@ import { PackedTransaction, Request } from "../src/ParallelSigner";
 import { OrderedRequestStore } from "./OrderedRequestStore";
 import { buildFunctionData1 } from "./polulate";
 
-import { dbConnect, initialDatabaseTables } from "./db";
 import { parseUnits } from "ethers/lib/utils";
+import { dbConnect, initialDatabaseTables } from "./db";
 const requestStore = new OrderedRequestStore();
 
 const chainId = 80001;
