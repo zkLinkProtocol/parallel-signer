@@ -35,7 +35,7 @@ const config: HardhatUserConfig = {
     },
     polygon: {
       url: process.env.POLYGON_WEB3_URL,
-      accounts: [process.env.POLYGON_WEB3_PRIVATE_KEY],
+      accounts: [process.env.POLYGON_WEB3_PRIVATE_KEY!],
       chainId: 80001,
     },
   },

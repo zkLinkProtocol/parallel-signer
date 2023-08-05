@@ -1,7 +1,7 @@
 import { ethers, config } from "hardhat";
 
 async function main() {
-  let provider = new ethers.providers.JsonRpcProvider(
+  let provider = new ethers.JsonRpcProvider(
     config.networks[config.defaultNetwork]["url"]
   );
 
@@ -11,8 +11,8 @@ async function main() {
   );
   const signer = wallet.connect(provider);
   const contract = await ethers.getContractFactory("TransferMulticall", signer);
-  const address = (await contract.deploy()).address;
-  console.log(address);
+  const address = (await contract.deploy()).getAddress();
+  console.log(await address);
   return;
 }
 

@@ -1,10 +1,14 @@
-import { Provider, TransactionRequest } from "@ethersproject/abstract-provider";
-import { ExternallyOwnedAccount } from "@ethersproject/abstract-signer";
-import { BytesLike } from "@ethersproject/bytes";
-import { keccak256 } from "@ethersproject/keccak256";
-import { defineReadOnly } from "@ethersproject/properties";
-import { SigningKey } from "@ethersproject/signing-key";
-import { BigNumber, BigNumberish, Wallet, providers } from "ethers";
+import {
+  BigNumberish,
+  Wallet,
+  JsonRpcProvider,
+  SigningKey,
+  TransactionResponse,
+  TransactionReceipt,
+  keccak256,
+  TransactionRequest,
+  Provider,
+} from "ethers";
 import { __setTimeoutConfig, getTimeout } from "./timer";
 
 // Description of the Request table in the database
@@ -77,25 +81,26 @@ export interface ParallelSignerOptions {
   readonly confirmations: number; // default: 64
 }
 
+export interface PopulateReturnType {
+  to: string;
+  data: string;
+  value?: BigNumberish;
+  gasLimit: BigNumberish;
+  maxFeePerGas?: null | BigNumberish;
+  maxPriorityFeePerGas?: null | BigNumberish;
+  gasPrice?: null | BigNumberish;
+}
+
 //requestCountLimit: maximum number of requests in a PackedTx
 //delayedSecond: maximum delay for a request to be packed, to wait for more transactions to be included in a PackedTx and avoid frequent rePacking that may result in high gas price.
 // If delayedSecond = 0, make sure not to call sendTransactions frequently, otherwise frequent rePacking will occur.
 export class ParallelSigner extends Wallet {
-  readonly chainId: number;
   options: ParallelSignerOptions;
   constructor(
-    privateKey: BytesLike | ExternallyOwnedAccount | SigningKey,
-    provider: providers.JsonRpcProvider,
+    privateKey: string | SigningKey,
+    provider: JsonRpcProvider,
     readonly requestStore: IOrderedRequestStore,
-    private populateFun: (requests: Request[]) => Promise<{
-      to: string;
-      data: string;
-      value?: BigNumberish;
-      gasLimit: BigNumberish;
-      maxFeePerGas?: string;
-      maxPriorityFeePerGas?: string;
-      gasPrice?: string;
-    }>,
+    private populateFun: (requests: Request[]) => Promise<PopulateReturnType>,
     options: Partial<ParallelSignerOptions> = {}
   ) {
     super(privateKey, provider);
@@ -108,19 +113,12 @@ export class ParallelSigner extends Wallet {
       ...options,
     };
 
-    if (provider && !Provider.isProvider(provider)) {
-      throw Error("invalid provider");
-    }
     if (requestStore === undefined) {
       throw Error("request store is undefined");
     }
-
-    defineReadOnly(
-      this,
-      "chainId",
-      (this.provider as any)?._network?.chainId ??
-        (this.provider as any)?.network?.chainId
-    );
+  }
+  async getChainId(): Promise<number> {
+    return Number((await this.provider.getNetwork()).chainId);
   }
   public mockProvider = {}; //TODO only for test,
   //TODO only for test
@@ -128,7 +126,7 @@ export class ParallelSigner extends Wallet {
     transaction: TransactionRequest,
     rawTx: string,
     packedTx: PackedTransaction
-  ): Promise<providers.TransactionResponse> {
+  ): Promise<TransactionResponse> {
     if (this.mockProvider["sendTransaction"]) {
       const mockRes = this.mockProvider["sendTransaction"](
         transaction,
@@ -139,37 +137,25 @@ export class ParallelSigner extends Wallet {
         return mockRes;
       }
     }
-    return this.provider.sendTransaction(rawTx);
+    return this.provider.broadcastTransaction(rawTx);
   }
-
   //TODO only for test
-  async mockProviderMethod(
-    methodName: string,
-    defaultMethod: Function,
-    ...args: any[]
-  ) {
-    if (this.mockProvider[methodName]) {
-      const mockRes = this.mockProvider[methodName](...args);
+  async getTransactionCount(tag: string): Promise<number> {
+    if (this.mockProvider["getTransactionCount"]) {
+      const mockRes = this.mockProvider["getTransactionCount"](tag);
       if (mockRes !== true) {
         return mockRes;
       }
     }
-    return await defaultMethod.call(this, ...args); //TODO why?
+    return this.provider.getTransactionCount(tag);
   }
-
-  async getTransactionCount(tag: string): Promise<number> {
-    return this.mockProviderMethod(
-      "getTransactionCount",
-      super.getTransactionCount,
-      tag
-    );
-  }
-
-  async getTransactionReceipt(
-    tx: string
-  ): Promise<providers.TransactionReceipt> {
+  //TODO only for test
+  async getTransactionReceipt(tx: string): Promise<TransactionReceipt> {
     if (this.mockProvider["getTransactionReceipt"]) {
-      return this.mockProvider["getTransactionReceipt"](tx);
+      const mockRes = this.mockProvider["getTransactionReceipt"](tx);
+      if (mockRes !== true) {
+        return mockRes;
+      }
     }
     return this.provider.getTransactionReceipt(tx);
   }
@@ -186,7 +172,7 @@ export class ParallelSigner extends Wallet {
 
     const intervalTime =
       this.options.delayedSecond === 0
-        ? getTimeout(this.chainId) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
+        ? getTimeout(await this.getChainId()) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
         : this.options.delayedSecond;
     this.timeHandler[1] = setInterval(async () => {
       await this.rePackedTransaction();
@@ -220,13 +206,16 @@ export class ParallelSigner extends Wallet {
     if (!txs || txs.length == 0) {
       return;
     }
-    const requests: Request[] = txs.map((v) => {
-      return {
+    const requests: Request[] = [];
+    for (let index = 0; index < txs.length; index++) {
+      const v = txs[index];
+      requests.push({
         functionData: v.functionData,
-        chainId: this.chainId,
+        chainId: await this.getChainId(),
         logId: v.logId,
-      };
-    });
+      });
+    }
+
     // Only ensure successful write to the database
     const res = await this.requestStore.setRequests(requests);
 
@@ -251,7 +240,7 @@ export class ParallelSigner extends Wallet {
   }
   private async getRepackRequests(): Promise<Request[]> {
     let latestPackedTx = await this.requestStore.getLatestPackedTransaction(
-      this.chainId
+      await this.getChainId()
     );
     const currentNonce: number = await this.getTransactionCount("latest");
     let minimalId = 0; // Start searching for requests from this id
@@ -264,7 +253,7 @@ export class ParallelSigner extends Wallet {
         let maxid = Math.max(...latestPackedTx.requestIds);
 
         let rqx = await this.requestStore.getRequests(
-          this.chainId,
+          await this.getChainId(),
           maxid + 1,
           this.options.requestCountLimit
         );
@@ -281,10 +270,10 @@ export class ParallelSigner extends Wallet {
           let gapTime = new Date().getTime() - (latestPackedTx.createdAt ?? 0);
           this.logger(
             `gapTime: ${gapTime}  timeout: ${getTimeout(
-              this.chainId
+              await this.getChainId()
             )} createdAt: ${latestPackedTx.createdAt}`
           );
-          if (gapTime > getTimeout(this.chainId)) {
+          if (gapTime > getTimeout(await this.getChainId())) {
             // Timeout
             this.logger("TIMEOUT REPACK");
             minimalId = Math.min(...latestPackedTx.requestIds) - 1;
@@ -309,7 +298,7 @@ export class ParallelSigner extends Wallet {
           : 0;
         while (true) {
           let packedTx = await this.requestStore.getMaxIDPackedTransaction(
-            this.chainId,
+            await this.getChainId(),
             lastCheckedId
           );
           if (packedTx == null) {
@@ -325,7 +314,7 @@ export class ParallelSigner extends Wallet {
           let latestCheckedPackedTxs =
             await this.requestStore.getPackedTransaction(
               packedTx.nonce,
-              this.chainId
+              await this.getChainId()
             );
 
           for (let k in latestCheckedPackedTxs) {
@@ -350,7 +339,7 @@ export class ParallelSigner extends Wallet {
     }
 
     let storedRequest = await this.requestStore.getRequests(
-      this.chainId,
+      await this.getChainId(),
       minimalId + 1,
       this.options.requestCountLimit
     );
@@ -384,13 +373,14 @@ export class ParallelSigner extends Wallet {
 
     // Create a new packed transaction
     let packedTx: PackedTransaction = {
-      gasPrice: (gasPrice ?? "").toString(),
-      maxFeePerGas: maxFeePerGas ?? "",
-      maxPriorityFeePerGas: maxPriorityFeePerGas ?? "",
+      gasPrice: gasPrice.toString(),
+      maxFeePerGas: maxFeePerGas == null ? "" : maxFeePerGas.toString(),
+      maxPriorityFeePerGas:
+        maxPriorityFeePerGas == null ? "" : maxPriorityFeePerGas.toString(),
       nonce: nonce,
       confirmation: 0,
       transactionHash: txid,
-      chainId: this.chainId,
+      chainId: await this.getChainId(),
       requestIds: requestsIds,
     };
     await this.requestStore.setPackedTransaction(packedTx);
@@ -402,7 +392,7 @@ export class ParallelSigner extends Wallet {
         "  requestsCount: " +
         requests.length +
         "  chainId: " +
-        this.chainId +
+        (await this.getChainId()) +
         "  gasPrice:maxFeePerGas:maxPriorityFeePerGas: " +
         gasPrice +
         ":" +
@@ -414,7 +404,7 @@ export class ParallelSigner extends Wallet {
   }
 
   private async buildTransactionRequest(
-    txParam,
+    txParam: PopulateReturnType,
     nonce: number
   ): Promise<TransactionRequest> {
     let {
@@ -434,12 +424,12 @@ export class ParallelSigner extends Wallet {
       gasLimit: gasLimit,
       nonce: nonce,
       value: value,
-      chainId: this.chainId,
+      chainId: await this.getChainId(),
     };
 
     // Get the latest packed transaction for the given nonce and chainId
     let latestPackedTx = await this.requestStore.getLatestPackedTransaction(
-      this.chainId,
+      await this.getChainId(),
       nonce
     );
     if (latestPackedTx === null) {
@@ -457,31 +447,28 @@ export class ParallelSigner extends Wallet {
 
     // Set gas price based on the latest packed transaction
     if (maxFeePerGas != null && maxPriorityFeePerGas != null) {
-      const nextMaxFeePerGas = BigNumber.from(latestPackedTx.maxFeePerGas)
-        .mul(110)
-        .div(100);
-      const finalMaxFeePerGas = nextMaxFeePerGas.gt(maxFeePerGas)
-        ? nextMaxFeePerGas
-        : maxFeePerGas;
+      const nextMaxFeePerGas: BigNumberish =
+        (BigInt(latestPackedTx.maxFeePerGas) * BigInt(110)) / BigInt(100);
+      const finalMaxFeePerGas =
+        nextMaxFeePerGas > BigInt(maxFeePerGas)
+          ? nextMaxFeePerGas
+          : maxFeePerGas;
       rtx.maxFeePerGas = finalMaxFeePerGas;
 
-      const nextMaxPriorityFeePerGas = BigNumber.from(
-        latestPackedTx.maxPriorityFeePerGas
-      )
-        .mul(110)
-        .div(100);
-      const finalMaxPriorityFeePerGas = nextMaxPriorityFeePerGas.gt(
-        maxPriorityFeePerGas
-      )
-        ? nextMaxPriorityFeePerGas
-        : maxPriorityFeePerGas;
+      const nextMaxPriorityFeePerGas =
+        (BigInt(latestPackedTx.maxPriorityFeePerGas) * BigInt(110)) /
+        BigInt(100);
+      const finalMaxPriorityFeePerGas =
+        nextMaxPriorityFeePerGas > BigInt(maxPriorityFeePerGas)
+          ? nextMaxPriorityFeePerGas
+          : maxPriorityFeePerGas;
 
       rtx.maxPriorityFeePerGas = finalMaxPriorityFeePerGas;
     } else if (gasPrice != null) {
-      const nextGasPrice = BigNumber.from(latestPackedTx.gasPrice)
-        .mul(110)
-        .div(100);
-      const finalGasPrice = nextGasPrice.gt(gasPrice) ? nextGasPrice : gasPrice;
+      const nextGasPrice =
+        (BigInt(latestPackedTx.gasPrice) * BigInt(110)) / BigInt(100);
+      const finalGasPrice =
+        nextGasPrice > BigInt(gasPrice) ? nextGasPrice : gasPrice;
       rtx.gasPrice = finalGasPrice;
     } else {
       throw new Error("gas price error");
@@ -492,7 +479,7 @@ export class ParallelSigner extends Wallet {
   private async checkConfirmations(nonce: number): Promise<number> {
     let packedTxs = await this.requestStore.getPackedTransaction(
       nonce,
-      this.chainId
+      await this.getChainId()
     );
     if (packedTxs.length == 0) {
       // This should not happen normally
@@ -505,7 +492,7 @@ export class ParallelSigner extends Wallet {
         let txRcpt = await this.getTransactionReceipt(v.transactionHash);
 
         if (txRcpt != null) {
-          if (txRcpt.confirmations >= this.options.confirmations) {
+          if ((await txRcpt.confirmations()) >= this.options.confirmations) {
             // Set request txid by v.txhash
             await this.requestStore.updateRequestBatch(
               v.requestIds,
@@ -517,7 +504,7 @@ export class ParallelSigner extends Wallet {
           // Update confirmation to db
           await this.requestStore.setPackedTransactionConfirmation(
             v.id ?? 0,
-            txRcpt.confirmations
+            await txRcpt.confirmations()
           );
           // There can be at most one packedTx with data on the chain
           break;
@@ -544,13 +531,13 @@ export class ParallelSigner extends Wallet {
       return;
     }
     let lastestTx = await this.requestStore.getLatestPackedTransaction(
-      this.chainId,
+      await this.getChainId(),
       currentNonce - 1
     );
     if (lastestTx == null) {
       // This will cause an exit. If the data of currentNonce - 1 cannot be found, it will cause an exit
       lastestTx = await this.requestStore.getLatestPackedTransaction(
-        this.chainId
+        await this.getChainId()
       );
       if (lastestTx == null) {
         return;
@@ -562,7 +549,7 @@ export class ParallelSigner extends Wallet {
     while (lastCheckedId > 0) {
       // Find the next one
       let nextTx = await this.requestStore.getMaxIDPackedTransaction(
-        this.chainId,
+        await this.getChainId(),
         lastCheckedId
       );
       if (nextTx == null) {

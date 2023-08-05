@@ -1,8 +1,4 @@
-import { TransactionRequest } from "@ethersproject/abstract-provider";
-import { ExternallyOwnedAccount } from "@ethersproject/abstract-signer";
-import { BytesLike } from "@ethersproject/bytes";
-import { SigningKey } from "@ethersproject/signing-key";
-import { BigNumberish, Wallet, providers } from "ethers";
+import { BigNumberish, Wallet, JsonRpcProvider, SigningKey, TransactionResponse, TransactionReceipt, TransactionRequest } from "ethers";
 export interface Request {
     id?: number;
     functionData: string;
@@ -39,25 +35,25 @@ export interface ParallelSignerOptions {
     readonly checkPackedTransactionIntervalSecond: number;
     readonly confirmations: number;
 }
+export interface PopulateReturnType {
+    to: string;
+    data: string;
+    value?: BigNumberish;
+    gasLimit: BigNumberish;
+    maxFeePerGas?: null | BigNumberish;
+    maxPriorityFeePerGas?: null | BigNumberish;
+    gasPrice?: null | BigNumberish;
+}
 export declare class ParallelSigner extends Wallet {
     readonly requestStore: IOrderedRequestStore;
     private populateFun;
-    readonly chainId: number;
     options: ParallelSignerOptions;
-    constructor(privateKey: BytesLike | ExternallyOwnedAccount | SigningKey, provider: providers.JsonRpcProvider, requestStore: IOrderedRequestStore, populateFun: (requests: Request[]) => Promise<{
-        to: string;
-        data: string;
-        value?: BigNumberish;
-        gasLimit: BigNumberish;
-        maxFeePerGas?: string;
-        maxPriorityFeePerGas?: string;
-        gasPrice?: string;
-    }>, options?: Partial<ParallelSignerOptions>);
+    constructor(privateKey: string | SigningKey, provider: JsonRpcProvider, requestStore: IOrderedRequestStore, populateFun: (requests: Request[]) => Promise<PopulateReturnType>, options?: Partial<ParallelSignerOptions>);
+    getChainId(): Promise<number>;
     mockProvider: {};
-    sendRawTransaction(transaction: TransactionRequest, rawTx: string, packedTx: PackedTransaction): Promise<providers.TransactionResponse>;
-    mockProviderMethod(methodName: string, defaultMethod: Function, ...args: any[]): Promise<any>;
+    sendRawTransaction(transaction: TransactionRequest, rawTx: string, packedTx: PackedTransaction): Promise<TransactionResponse>;
     getTransactionCount(tag: string): Promise<number>;
-    getTransactionReceipt(tx: string): Promise<providers.TransactionReceipt>;
+    getTransactionReceipt(tx: string): Promise<TransactionReceipt>;
     private logger;
     setLogger(_logger: (...data: any[]) => any): Promise<void>;
     init(): Promise<void>;

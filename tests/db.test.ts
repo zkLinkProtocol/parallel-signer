@@ -2,7 +2,7 @@ import { PackedTransaction, Request } from "../src/ParallelSigner";
 import { OrderedRequestStore } from "./OrderedRequestStore";
 import { buildFunctionData1 } from "./polulate";
 
-import { parseUnits } from "ethers/lib/utils";
+import { parseUnits } from "ethers";
 import { dbConnect, initialDatabaseTables } from "./db";
 const requestStore = new OrderedRequestStore();
 
@@ -10,6 +10,9 @@ const chainId = 80001;
 
 beforeEach(async () => {
   await initialDatabaseTables();
+  const db = await dbConnect();
+  db.exec("DELETE FROM requests;");
+  db.exec("DELETE FROM packed_transactions;");
 });
 afterEach(async () => {
   const db = await dbConnect();

@@ -10,9 +10,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ParallelSigner = exports.IOrderedRequestStore = void 0;
-const abstract_provider_1 = require("@ethersproject/abstract-provider");
-const keccak256_1 = require("@ethersproject/keccak256");
-const properties_1 = require("@ethersproject/properties");
 const ethers_1 = require("ethers");
 const timer_1 = require("./timer");
 class IOrderedRequestStore {
@@ -23,7 +20,6 @@ exports.IOrderedRequestStore = IOrderedRequestStore;
 // If delayedSecond = 0, make sure not to call sendTransactions frequently, otherwise frequent rePacking will occur.
 class ParallelSigner extends ethers_1.Wallet {
     constructor(privateKey, provider, requestStore, populateFun, options = {}) {
-        var _a, _b, _c, _d, _e;
         super(privateKey, provider);
         this.requestStore = requestStore;
         this.populateFun = populateFun;
@@ -34,13 +30,14 @@ class ParallelSigner extends ethers_1.Wallet {
         // Each repacked transaction should be an independent process, discovering the current state on the chain, checking the progress in the database, and finding the correct starting position for the request
         this.repacking = false;
         this.options = Object.assign({ requestCountLimit: 10, delayedSecond: 0, checkPackedTransactionIntervalSecond: 15, confirmations: 64 }, options);
-        if (provider && !abstract_provider_1.Provider.isProvider(provider)) {
-            throw Error("invalid provider");
-        }
         if (requestStore === undefined) {
             throw Error("request store is undefined");
         }
-        (0, properties_1.defineReadOnly)(this, "chainId", (_c = (_b = (_a = this.provider) === null || _a === void 0 ? void 0 : _a._network) === null || _b === void 0 ? void 0 : _b.chainId) !== null && _c !== void 0 ? _c : (_e = (_d = this.provider) === null || _d === void 0 ? void 0 : _d.network) === null || _e === void 0 ? void 0 : _e.chainId);
+    }
+    getChainId() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return Number((yield this.provider.getNetwork()).chainId);
+        });
     }
     //TODO only for test
     sendRawTransaction(transaction, rawTx, packedTx) {
@@ -51,33 +48,29 @@ class ParallelSigner extends ethers_1.Wallet {
                     return mockRes;
                 }
             }
-            return this.provider.sendTransaction(rawTx);
+            return this.provider.broadcastTransaction(rawTx);
         });
     }
     //TODO only for test
-    mockProviderMethod(methodName, defaultMethod, ...args) {
+    getTransactionCount(tag) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (this.mockProvider[methodName]) {
-                const mockRes = this.mockProvider[methodName](...args);
+            if (this.mockProvider["getTransactionCount"]) {
+                const mockRes = this.mockProvider["getTransactionCount"](tag);
                 if (mockRes !== true) {
                     return mockRes;
                 }
             }
-            return yield defaultMethod.call(this, ...args); //TODO why?
+            return this.provider.getTransactionCount(tag);
         });
     }
-    getTransactionCount(tag) {
-        const _super = Object.create(null, {
-            getTransactionCount: { get: () => super.getTransactionCount }
-        });
-        return __awaiter(this, void 0, void 0, function* () {
-            return this.mockProviderMethod("getTransactionCount", _super.getTransactionCount, tag);
-        });
-    }
+    //TODO only for test
     getTransactionReceipt(tx) {
         return __awaiter(this, void 0, void 0, function* () {
             if (this.mockProvider["getTransactionReceipt"]) {
-                return this.mockProvider["getTransactionReceipt"](tx);
+                const mockRes = this.mockProvider["getTransactionReceipt"](tx);
+                if (mockRes !== true) {
+                    return mockRes;
+                }
             }
             return this.provider.getTransactionReceipt(tx);
         });
@@ -93,7 +86,7 @@ class ParallelSigner extends ethers_1.Wallet {
                 yield this.checkPackedTransaction();
             }), this.options.checkPackedTransactionIntervalSecond * 1000);
             const intervalTime = this.options.delayedSecond === 0
-                ? (0, timer_1.getTimeout)(this.chainId) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
+                ? (0, timer_1.getTimeout)(yield this.getChainId()) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
                 : this.options.delayedSecond;
             this.timeHandler[1] = setInterval(() => __awaiter(this, void 0, void 0, function* () {
                 yield this.rePackedTransaction();
@@ -127,13 +120,15 @@ class ParallelSigner extends ethers_1.Wallet {
             if (!txs || txs.length == 0) {
                 return;
             }
-            const requests = txs.map((v) => {
-                return {
+            const requests = [];
+            for (let index = 0; index < txs.length; index++) {
+                const v = txs[index];
+                requests.push({
                     functionData: v.functionData,
-                    chainId: this.chainId,
+                    chainId: yield this.getChainId(),
                     logId: v.logId,
-                };
-            });
+                });
+            }
             // Only ensure successful write to the database
             const res = yield this.requestStore.setRequests(requests);
             // When there is no delay, only process transactions within the limit of the requestCountLimit for this batch. Others will be stored in the database and processed by the scheduled task.
@@ -159,7 +154,7 @@ class ParallelSigner extends ethers_1.Wallet {
     getRepackRequests() {
         var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
-            let latestPackedTx = yield this.requestStore.getLatestPackedTransaction(this.chainId);
+            let latestPackedTx = yield this.requestStore.getLatestPackedTransaction(yield this.getChainId());
             const currentNonce = yield this.getTransactionCount("latest");
             let minimalId = 0; // Start searching for requests from this id
             // If latestPackedTx exists, find minimalId to search for requests
@@ -168,7 +163,7 @@ class ParallelSigner extends ethers_1.Wallet {
                     // If there are no new requests, wait. If there are new requests, repack.
                     // If the current nonce has not been successfully confirmed on the chain, repacking should not continue. It should wait for the checkPackedTransaction timer to execute.
                     let maxid = Math.max(...latestPackedTx.requestIds);
-                    let rqx = yield this.requestStore.getRequests(this.chainId, maxid + 1, this.options.requestCountLimit);
+                    let rqx = yield this.requestStore.getRequests(yield this.getChainId(), maxid + 1, this.options.requestCountLimit);
                     if (latestPackedTx.requestIds.length < this.options.requestCountLimit &&
                         rqx.length > 0) {
                         this.logger("NEW DATA REPACK");
@@ -178,8 +173,8 @@ class ParallelSigner extends ethers_1.Wallet {
                     else {
                         // If there is no new data or the limit has been reached, check if it has timed out
                         let gapTime = new Date().getTime() - ((_a = latestPackedTx.createdAt) !== null && _a !== void 0 ? _a : 0);
-                        this.logger(`gapTime: ${gapTime}  timeout: ${(0, timer_1.getTimeout)(this.chainId)} createdAt: ${latestPackedTx.createdAt}`);
-                        if (gapTime > (0, timer_1.getTimeout)(this.chainId)) {
+                        this.logger(`gapTime: ${gapTime}  timeout: ${(0, timer_1.getTimeout)(yield this.getChainId())} createdAt: ${latestPackedTx.createdAt}`);
+                        if (gapTime > (0, timer_1.getTimeout)(yield this.getChainId())) {
                             // Timeout
                             this.logger("TIMEOUT REPACK");
                             minimalId = Math.min(...latestPackedTx.requestIds) - 1;
@@ -204,7 +199,7 @@ class ParallelSigner extends ethers_1.Wallet {
                         ? latestPackedTx.id + 1
                         : 0;
                     while (true) {
-                        let packedTx = yield this.requestStore.getMaxIDPackedTransaction(this.chainId, lastCheckedId);
+                        let packedTx = yield this.requestStore.getMaxIDPackedTransaction(yield this.getChainId(), lastCheckedId);
                         if (packedTx == null) {
                             // Reached the lowest point
                             break;
@@ -214,7 +209,7 @@ class ParallelSigner extends ethers_1.Wallet {
                             lastCheckedId = (_b = packedTx.id) !== null && _b !== void 0 ? _b : 0;
                             continue;
                         }
-                        let latestCheckedPackedTxs = yield this.requestStore.getPackedTransaction(packedTx.nonce, this.chainId);
+                        let latestCheckedPackedTxs = yield this.requestStore.getPackedTransaction(packedTx.nonce, yield this.getChainId());
                         for (let k in latestCheckedPackedTxs) {
                             packedTx = latestCheckedPackedTxs[k];
                             lastCheckedId = Math.min((_c = packedTx.id) !== null && _c !== void 0 ? _c : 0, lastCheckedId);
@@ -233,7 +228,7 @@ class ParallelSigner extends ethers_1.Wallet {
                     }
                 }
             }
-            let storedRequest = yield this.requestStore.getRequests(this.chainId, minimalId + 1, this.options.requestCountLimit);
+            let storedRequest = yield this.requestStore.getRequests(yield this.getChainId(), minimalId + 1, this.options.requestCountLimit);
             return storedRequest;
         });
     }
@@ -254,7 +249,7 @@ class ParallelSigner extends ethers_1.Wallet {
             // Populate and sign the transaction
             rtx = yield this.populateTransaction(rtx);
             const signedTx = yield this.signTransaction(rtx);
-            let txid = (0, keccak256_1.keccak256)(signedTx);
+            let txid = (0, ethers_1.keccak256)(signedTx);
             let requestsIds = requests.map((v) => {
                 if (v.id === 0 || v.id === undefined) {
                     throw new Error("request id has not been assigned");
@@ -263,13 +258,13 @@ class ParallelSigner extends ethers_1.Wallet {
             });
             // Create a new packed transaction
             let packedTx = {
-                gasPrice: (gasPrice !== null && gasPrice !== void 0 ? gasPrice : "").toString(),
-                maxFeePerGas: maxFeePerGas !== null && maxFeePerGas !== void 0 ? maxFeePerGas : "",
-                maxPriorityFeePerGas: maxPriorityFeePerGas !== null && maxPriorityFeePerGas !== void 0 ? maxPriorityFeePerGas : "",
+                gasPrice: gasPrice.toString(),
+                maxFeePerGas: maxFeePerGas == null ? "" : maxFeePerGas.toString(),
+                maxPriorityFeePerGas: maxPriorityFeePerGas == null ? "" : maxPriorityFeePerGas.toString(),
                 nonce: nonce,
                 confirmation: 0,
                 transactionHash: txid,
-                chainId: this.chainId,
+                chainId: yield this.getChainId(),
                 requestIds: requestsIds,
             };
             yield this.requestStore.setPackedTransaction(packedTx);
@@ -280,7 +275,7 @@ class ParallelSigner extends ethers_1.Wallet {
                 "  requestsCount: " +
                 requests.length +
                 "  chainId: " +
-                this.chainId +
+                (yield this.getChainId()) +
                 "  gasPrice:maxFeePerGas:maxPriorityFeePerGas: " +
                 gasPrice +
                 ":" +
@@ -300,10 +295,10 @@ class ParallelSigner extends ethers_1.Wallet {
                 gasLimit: gasLimit,
                 nonce: nonce,
                 value: value,
-                chainId: this.chainId,
+                chainId: yield this.getChainId(),
             };
             // Get the latest packed transaction for the given nonce and chainId
-            let latestPackedTx = yield this.requestStore.getLatestPackedTransaction(this.chainId, nonce);
+            let latestPackedTx = yield this.requestStore.getLatestPackedTransaction(yield this.getChainId(), nonce);
             if (latestPackedTx === null) {
                 //first tx
                 if (maxFeePerGas != null && maxPriorityFeePerGas != null) {
@@ -320,26 +315,21 @@ class ParallelSigner extends ethers_1.Wallet {
             }
             // Set gas price based on the latest packed transaction
             if (maxFeePerGas != null && maxPriorityFeePerGas != null) {
-                const nextMaxFeePerGas = ethers_1.BigNumber.from(latestPackedTx.maxFeePerGas)
-                    .mul(110)
-                    .div(100);
-                const finalMaxFeePerGas = nextMaxFeePerGas.gt(maxFeePerGas)
+                const nextMaxFeePerGas = (BigInt(latestPackedTx.maxFeePerGas) * BigInt(110)) / BigInt(100);
+                const finalMaxFeePerGas = nextMaxFeePerGas > BigInt(maxFeePerGas)
                     ? nextMaxFeePerGas
                     : maxFeePerGas;
                 rtx.maxFeePerGas = finalMaxFeePerGas;
-                const nextMaxPriorityFeePerGas = ethers_1.BigNumber.from(latestPackedTx.maxPriorityFeePerGas)
-                    .mul(110)
-                    .div(100);
-                const finalMaxPriorityFeePerGas = nextMaxPriorityFeePerGas.gt(maxPriorityFeePerGas)
+                const nextMaxPriorityFeePerGas = (BigInt(latestPackedTx.maxPriorityFeePerGas) * BigInt(110)) /
+                    BigInt(100);
+                const finalMaxPriorityFeePerGas = nextMaxPriorityFeePerGas > BigInt(maxPriorityFeePerGas)
                     ? nextMaxPriorityFeePerGas
                     : maxPriorityFeePerGas;
                 rtx.maxPriorityFeePerGas = finalMaxPriorityFeePerGas;
             }
             else if (gasPrice != null) {
-                const nextGasPrice = ethers_1.BigNumber.from(latestPackedTx.gasPrice)
-                    .mul(110)
-                    .div(100);
-                const finalGasPrice = nextGasPrice.gt(gasPrice) ? nextGasPrice : gasPrice;
+                const nextGasPrice = (BigInt(latestPackedTx.gasPrice) * BigInt(110)) / BigInt(100);
+                const finalGasPrice = nextGasPrice > BigInt(gasPrice) ? nextGasPrice : gasPrice;
                 rtx.gasPrice = finalGasPrice;
             }
             else {
@@ -351,7 +341,7 @@ class ParallelSigner extends ethers_1.Wallet {
     checkConfirmations(nonce) {
         var _a;
         return __awaiter(this, void 0, void 0, function* () {
-            let packedTxs = yield this.requestStore.getPackedTransaction(nonce, this.chainId);
+            let packedTxs = yield this.requestStore.getPackedTransaction(nonce, yield this.getChainId());
             if (packedTxs.length == 0) {
                 // This should not happen normally
                 return 0;
@@ -362,14 +352,14 @@ class ParallelSigner extends ethers_1.Wallet {
                 if (v.confirmation < this.options.confirmations) {
                     let txRcpt = yield this.getTransactionReceipt(v.transactionHash);
                     if (txRcpt != null) {
-                        if (txRcpt.confirmations >= this.options.confirmations) {
+                        if ((yield txRcpt.confirmations()) >= this.options.confirmations) {
                             // Set request txid by v.txhash
                             yield this.requestStore.updateRequestBatch(v.requestIds, v.transactionHash);
                             // If data satisfying the confirmation requirement is found, return 0 to stop further searching
                             result = 0;
                         }
                         // Update confirmation to db
-                        yield this.requestStore.setPackedTransactionConfirmation((_a = v.id) !== null && _a !== void 0 ? _a : 0, txRcpt.confirmations);
+                        yield this.requestStore.setPackedTransactionConfirmation((_a = v.id) !== null && _a !== void 0 ? _a : 0, yield txRcpt.confirmations());
                         // There can be at most one packedTx with data on the chain
                         break;
                     }
@@ -397,10 +387,10 @@ class ParallelSigner extends ethers_1.Wallet {
             if (currentNonce == 0) {
                 return;
             }
-            let lastestTx = yield this.requestStore.getLatestPackedTransaction(this.chainId, currentNonce - 1);
+            let lastestTx = yield this.requestStore.getLatestPackedTransaction(yield this.getChainId(), currentNonce - 1);
             if (lastestTx == null) {
                 // This will cause an exit. If the data of currentNonce - 1 cannot be found, it will cause an exit
-                lastestTx = yield this.requestStore.getLatestPackedTransaction(this.chainId);
+                lastestTx = yield this.requestStore.getLatestPackedTransaction(yield this.getChainId());
                 if (lastestTx == null) {
                     return;
                 }
@@ -409,7 +399,7 @@ class ParallelSigner extends ethers_1.Wallet {
             lastCheckedId += 1; // Ensure that this batch is within the check of the while loop
             while (lastCheckedId > 0) {
                 // Find the next one
-                let nextTx = yield this.requestStore.getMaxIDPackedTransaction(this.chainId, lastCheckedId);
+                let nextTx = yield this.requestStore.getMaxIDPackedTransaction(yield this.getChainId(), lastCheckedId);
                 if (nextTx == null) {
                     // Reached the lowest point
                     break;

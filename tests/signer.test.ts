@@ -1,4 +1,4 @@
-import { providers } from "ethers";
+import { JsonRpcProvider } from "ethers";
 import hre from "hardhat";
 import * as _ from "lodash";
 import { PackedTransaction, ParallelSigner } from "../src/ParallelSigner";
@@ -12,7 +12,6 @@ async function sleep(ms: number) {
   });
 }
 const requestStore = new OrderedRequestStore();
-console.log(hre.config.networks[hre.config.defaultNetwork]);
 const chainId = hre.config.networks[hre.config.defaultNetwork].chainId ?? 0;
 beforeEach(async () => {
   await initialDatabaseTables();
@@ -200,7 +199,11 @@ describe("OrderedRequestStore", () => {
     signer.mockProvider["getTransactionReceipt"] = function (txid) {
       if (txid === aptx[1].transactionHash) {
         checksignal += 1;
-        return {}; //not null
+        return {
+          async confirmations() {
+            return 0;
+          },
+        }; //not null
       }
     };
     // Must increase the nonce, otherwise the logic of executing getTransactionReceipt will not be entered
@@ -222,7 +225,11 @@ describe("OrderedRequestStore", () => {
     signer.mockProvider["getTransactionReceipt"] = function (txid) {
       if (txid === aptx[1].transactionHash) {
         checksignal += 1;
-        return {}; //not null
+        return {
+          async confirmations() {
+            return 0;
+          },
+        }; //not null
       }
     };
     expect(aptx[1].nonce).toBe(102);
@@ -242,7 +249,6 @@ describe("OrderedRequestStore", () => {
     expect(lpx1?.requestIds.length).toBe(1);
     expect(_.isEqual(lpx1?.requestIds, requestId2)).toBeTruthy();
   });
-
   it("Test with historical data and normal nonce growth, but nonce rollback occurs", async () => {
     const limit = 2;
     const delaytime = 5;
@@ -283,7 +289,11 @@ describe("OrderedRequestStore", () => {
       signer.mockProvider["getTransactionReceipt"] = function (txid) {
         if (lpx?.transactionHash === txid) {
           checksignal += 1;
-          return {};
+          return {
+            async confirmations() {
+              return 0;
+            },
+          };
         }
         return null;
       };
@@ -299,7 +309,11 @@ describe("OrderedRequestStore", () => {
       signer.mockProvider["getTransactionReceipt"] = function (txid) {
         if (lpx?.transactionHash === txid) {
           checksignal += 1;
-          return {};
+          return {
+            async confirmations() {
+              return 0;
+            },
+          };
         }
         return null;
       };
@@ -328,7 +342,11 @@ describe("OrderedRequestStore", () => {
       signer.mockProvider["getTransactionReceipt"] = function (txid) {
         if (lpx?.transactionHash === txid) {
           checksignal += 1;
-          return {};
+          return {
+            async confirmations() {
+              return 0;
+            },
+          };
         }
         return null;
       };
@@ -382,7 +400,11 @@ describe("OrderedRequestStore", () => {
 
     signer.mockProvider["getTransactionReceipt"] = function (txid) {
       if (txid === lpx?.transactionHash) {
-        return { confirmations: signer.options.confirmations + 1 };
+        return {
+          async confirmations() {
+            return signer.options.confirmations + 1;
+          },
+        };
       }
       return null;
     };
@@ -410,7 +432,7 @@ function initParallelSigner(
   delaySecond: number = 0,
   limit: number = 10
 ) {
-  const provider = new providers.JsonRpcProvider(
+  const provider = new JsonRpcProvider(
     hre.config.networks[hre.config.defaultNetwork]["url"],
     {
       name: hre.config.defaultNetwork,
