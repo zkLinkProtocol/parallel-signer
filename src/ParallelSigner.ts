@@ -434,6 +434,7 @@ export class ParallelSigner extends Wallet {
     );
     if (latestPackedTx === null) {
       //first tx
+
       if (maxFeePerGas != null && maxPriorityFeePerGas != null) {
         rtx.maxFeePerGas = maxFeePerGas;
         rtx.maxPriorityFeePerGas = maxPriorityFeePerGas;
@@ -446,7 +447,7 @@ export class ParallelSigner extends Wallet {
     }
 
     // Set gas price based on the latest packed transaction
-    if (maxFeePerGas != null && maxPriorityFeePerGas != null) {
+    if (notNil(maxFeePerGas) && notNil(maxPriorityFeePerGas)) {
       const nextMaxFeePerGas: BigNumberish =
         (BigInt(latestPackedTx.maxFeePerGas) * BigInt(110)) / BigInt(100);
       const finalMaxFeePerGas =
@@ -464,7 +465,7 @@ export class ParallelSigner extends Wallet {
           : maxPriorityFeePerGas;
 
       rtx.maxPriorityFeePerGas = finalMaxPriorityFeePerGas;
-    } else if (gasPrice != null) {
+    } else if (notNil(gasPrice)) {
       const nextGasPrice =
         (BigInt(latestPackedTx.gasPrice) * BigInt(110)) / BigInt(100);
       const finalGasPrice =
@@ -564,4 +565,11 @@ export class ParallelSigner extends Wallet {
       lastCheckedId = await this.checkConfirmations(nextTx.nonce);
     }
   }
+}
+
+function notNil(arg): boolean {
+  if (arg === null || arg === undefined) {
+    return false;
+  }
+  return true;
 }
