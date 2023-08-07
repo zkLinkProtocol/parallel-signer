@@ -60,7 +60,7 @@ class ParallelSigner extends ethers_1.Wallet {
                     return mockRes;
                 }
             }
-            return this.provider.getTransactionCount(tag);
+            return this.provider.getTransactionCount(this.address, tag);
         });
     }
     //TODO only for test
@@ -314,7 +314,7 @@ class ParallelSigner extends ethers_1.Wallet {
                 return rtx;
             }
             // Set gas price based on the latest packed transaction
-            if (maxFeePerGas != null && maxPriorityFeePerGas != null) {
+            if (notNil(maxFeePerGas) && notNil(maxPriorityFeePerGas)) {
                 const nextMaxFeePerGas = (BigInt(latestPackedTx.maxFeePerGas) * BigInt(110)) / BigInt(100);
                 const finalMaxFeePerGas = nextMaxFeePerGas > BigInt(maxFeePerGas)
                     ? nextMaxFeePerGas
@@ -327,7 +327,7 @@ class ParallelSigner extends ethers_1.Wallet {
                     : maxPriorityFeePerGas;
                 rtx.maxPriorityFeePerGas = finalMaxPriorityFeePerGas;
             }
-            else if (gasPrice != null) {
+            else if (notNil(gasPrice)) {
                 const nextGasPrice = (BigInt(latestPackedTx.gasPrice) * BigInt(110)) / BigInt(100);
                 const finalGasPrice = nextGasPrice > BigInt(gasPrice) ? nextGasPrice : gasPrice;
                 rtx.gasPrice = finalGasPrice;
@@ -415,3 +415,9 @@ class ParallelSigner extends ethers_1.Wallet {
     }
 }
 exports.ParallelSigner = ParallelSigner;
+function notNil(arg) {
+    if (arg === null || arg === undefined) {
+        return false;
+    }
+    return true;
+}
