@@ -384,7 +384,6 @@ class ParallelSigner extends ethers_1.Wallet {
     checkPackedTransaction() {
         var _a;
         return __awaiter(this, void 0, void 0, function* () {
-            this.logger(`Interval checkPackedTransaction`);
             let currentNonce = yield this.getTransactionCount("latest");
             if (currentNonce == 0) {
                 return;
