@@ -527,7 +527,6 @@ export class ParallelSigner extends Wallet {
    * The interval time should be set to around 15 seconds, too frequent has little significance
    **/
   private async checkPackedTransaction() {
-    this.logger(`Interval checkPackedTransaction`);
     let currentNonce = await this.getTransactionCount("latest");
     if (currentNonce == 0) {
       return;
