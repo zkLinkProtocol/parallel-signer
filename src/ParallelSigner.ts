@@ -147,7 +147,7 @@ export class ParallelSigner extends Wallet {
         return mockRes;
       }
     }
-    return this.provider.getTransactionCount(tag);
+    return this.provider.getTransactionCount(this.address, tag);
   }
   //TODO only for test
   async getTransactionReceipt(tx: string): Promise<TransactionReceipt> {
