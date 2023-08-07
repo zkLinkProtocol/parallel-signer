@@ -258,9 +258,11 @@ class ParallelSigner extends ethers_1.Wallet {
             });
             // Create a new packed transaction
             let packedTx = {
-                gasPrice: gasPrice.toString(),
-                maxFeePerGas: maxFeePerGas == null ? "" : maxFeePerGas.toString(),
-                maxPriorityFeePerGas: maxPriorityFeePerGas == null ? "" : maxPriorityFeePerGas.toString(),
+                gasPrice: notNil(gasPrice) ? gasPrice.toString() : "",
+                maxFeePerGas: notNil(maxFeePerGas) ? maxFeePerGas.toString() : "",
+                maxPriorityFeePerGas: notNil(maxPriorityFeePerGas)
+                    ? maxPriorityFeePerGas.toString()
+                    : "",
                 nonce: nonce,
                 confirmation: 0,
                 transactionHash: txid,
@@ -301,11 +303,11 @@ class ParallelSigner extends ethers_1.Wallet {
             let latestPackedTx = yield this.requestStore.getLatestPackedTransaction(yield this.getChainId(), nonce);
             if (latestPackedTx === null) {
                 //first tx
-                if (maxFeePerGas != null && maxPriorityFeePerGas != null) {
+                if (notNil(maxFeePerGas) && notNil(maxPriorityFeePerGas)) {
                     rtx.maxFeePerGas = maxFeePerGas;
                     rtx.maxPriorityFeePerGas = maxPriorityFeePerGas;
                 }
-                else if (gasPrice != null) {
+                else if (notNil(gasPrice) != null) {
                     rtx.gasPrice = gasPrice;
                 }
                 else {

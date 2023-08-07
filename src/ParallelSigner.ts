@@ -373,10 +373,11 @@ export class ParallelSigner extends Wallet {
 
     // Create a new packed transaction
     let packedTx: PackedTransaction = {
-      gasPrice: gasPrice.toString(),
-      maxFeePerGas: maxFeePerGas == null ? "" : maxFeePerGas.toString(),
-      maxPriorityFeePerGas:
-        maxPriorityFeePerGas == null ? "" : maxPriorityFeePerGas.toString(),
+      gasPrice: notNil(gasPrice) ? gasPrice.toString() : "",
+      maxFeePerGas: notNil(maxFeePerGas) ? maxFeePerGas.toString() : "",
+      maxPriorityFeePerGas: notNil(maxPriorityFeePerGas)
+        ? maxPriorityFeePerGas.toString()
+        : "",
       nonce: nonce,
       confirmation: 0,
       transactionHash: txid,
@@ -435,10 +436,10 @@ export class ParallelSigner extends Wallet {
     if (latestPackedTx === null) {
       //first tx
 
-      if (maxFeePerGas != null && maxPriorityFeePerGas != null) {
+      if (notNil(maxFeePerGas) && notNil(maxPriorityFeePerGas)) {
         rtx.maxFeePerGas = maxFeePerGas;
         rtx.maxPriorityFeePerGas = maxPriorityFeePerGas;
-      } else if (gasPrice != null) {
+      } else if (notNil(gasPrice) != null) {
         rtx.gasPrice = gasPrice;
       } else {
         throw new Error("gas price error");
