@@ -34,6 +34,7 @@ export interface ParallelSignerOptions {
     readonly delayedSecond: number;
     readonly checkPackedTransactionIntervalSecond: number;
     readonly confirmations: number;
+    readonly checkConfirmation?: (recpt: TransactionReceipt) => void;
 }
 export interface PopulateReturnType {
     to: string;

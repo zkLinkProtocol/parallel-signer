@@ -79,6 +79,7 @@ export interface ParallelSignerOptions {
   readonly delayedSecond: number; // default: 0
   readonly checkPackedTransactionIntervalSecond: number; // default: 15
   readonly confirmations: number; // default: 64
+  readonly checkConfirmation?: (recpt: TransactionReceipt) => void;
 }
 
 export interface PopulateReturnType {
@@ -494,6 +495,17 @@ export class ParallelSigner extends Wallet {
         let txRcpt = await this.getTransactionReceipt(v.transactionHash);
 
         if (txRcpt != null) {
+          if (
+            this.options.checkConfirmation &&
+            typeof this.options.checkConfirmation === "function"
+          ) {
+            try {
+              this.options.checkConfirmation(txRcpt);
+            } catch (ex) {
+              this.logger(ex);
+            }
+          }
+
           if ((await txRcpt.confirmations()) >= this.options.confirmations) {
             // Set request txid by v.txhash
             await this.requestStore.updateRequestBatch(

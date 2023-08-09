@@ -354,6 +354,15 @@ class ParallelSigner extends ethers_1.Wallet {
                 if (v.confirmation < this.options.confirmations) {
                     let txRcpt = yield this.getTransactionReceipt(v.transactionHash);
                     if (txRcpt != null) {
+                        if (this.options.checkConfirmation &&
+                            typeof this.options.checkConfirmation === "function") {
+                            try {
+                                this.options.checkConfirmation(txRcpt);
+                            }
+                            catch (ex) {
+                                this.logger(ex);
+                            }
+                        }
                         if ((yield txRcpt.confirmations()) >= this.options.confirmations) {
                             // Set request txid by v.txhash
                             yield this.requestStore.updateRequestBatch(v.requestIds, v.transactionHash);
