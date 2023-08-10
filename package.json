@@ -1,6 +1,6 @@
 {
   "name": "parallel-signer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "This project provides the functionality to manage ETH nonce concurrently.",
   "main": "build/ParallelSigner.js",
   "types": "build/ParallelSigner.d.ts",
