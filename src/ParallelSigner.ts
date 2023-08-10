@@ -384,9 +384,11 @@ export class ParallelSigner extends Wallet {
 
     // Create a new packed transaction
     let packedTx: PackedTransaction = {
-      gasPrice: (gasPrice ?? "").toString(),
-      maxFeePerGas: maxFeePerGas ?? "",
-      maxPriorityFeePerGas: maxPriorityFeePerGas ?? "",
+      gasPrice: rtx?.gasPrice ? rtx?.gasPrice.toString() : null,
+      maxFeePerGas: rtx?.maxFeePerGas ? rtx?.maxFeePerGas.toString() : null,
+      maxPriorityFeePerGas: rtx?.maxPriorityFeePerGas
+        ? rtx?.maxPriorityFeePerGas.toString()
+        : null,
       nonce: nonce,
       confirmation: 0,
       transactionHash: txid,
