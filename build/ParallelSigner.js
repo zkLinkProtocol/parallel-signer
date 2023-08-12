@@ -258,10 +258,10 @@ class ParallelSigner extends ethers_1.Wallet {
             });
             // Create a new packed transaction
             let packedTx = {
-                gasPrice: notNil(gasPrice) ? gasPrice.toString() : "",
-                maxFeePerGas: notNil(maxFeePerGas) ? maxFeePerGas.toString() : "",
-                maxPriorityFeePerGas: notNil(maxPriorityFeePerGas)
-                    ? maxPriorityFeePerGas.toString()
+                gasPrice: notNil(rtx.gasPrice) ? rtx.gasPrice.toString() : "",
+                maxFeePerGas: notNil(rtx.maxFeePerGas) ? rtx.maxFeePerGas.toString() : "",
+                maxPriorityFeePerGas: notNil(rtx.maxPriorityFeePerGas)
+                    ? rtx.maxPriorityFeePerGas.toString()
                     : "",
                 nonce: nonce,
                 confirmation: 0,
