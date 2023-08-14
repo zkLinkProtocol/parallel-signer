@@ -163,12 +163,21 @@ export class ParallelSigner extends Wallet {
 
   //TODO should refactor. At least support two types of log output: info and debug
   private logger = console.log;
+  private loggerError = console.error;
   async setLogger(_logger: (...data: any[]) => any) {
     this.logger = _logger;
   }
+  async setLoggerError(_logger: (...data: any[]) => any) {
+    this.loggerError = _logger;
+  }
   async init() {
     this.timeHandler[0] = setInterval(async () => {
-      await this.checkPackedTransaction();
+      try {
+        await this.checkPackedTransaction();
+      } catch (err) {
+        this.loggerError("ERROR checkPackedTransactionInterval");
+        this.loggerError(err);
+      }
     }, this.options.checkPackedTransactionIntervalSecond * 1000);
 
     const intervalTime =
@@ -176,7 +185,12 @@ export class ParallelSigner extends Wallet {
         ? getTimeout(await this.getChainId()) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
         : this.options.delayedSecond;
     this.timeHandler[1] = setInterval(async () => {
-      await this.rePackedTransaction();
+      try {
+        await this.rePackedTransaction();
+      } catch (err) {
+        this.loggerError("ERROR rePackedTransactionInterval");
+        this.loggerError(err);
+      }
     }, intervalTime * 1000);
   }
 
@@ -223,7 +237,12 @@ export class ParallelSigner extends Wallet {
     // When there is no delay, only process transactions within the limit of the requestCountLimit for this batch. Others will be stored in the database and processed by the scheduled task.
     // The requests may exceed the limit, but the rePackedTransaction method will handle the limit
     if (this.options.delayedSecond == 0) {
-      await this.rePackedTransaction();
+      try {
+        await this.rePackedTransaction();
+      } catch (err) {
+        this.loggerError("ERROR sendTransactions rePackedTransaction");
+        this.loggerError(err);
+      }
     }
     return res;
   }
@@ -269,11 +288,11 @@ export class ParallelSigner extends Wallet {
           // If there is no new data or the limit has been reached, check if it has timed out
 
           let gapTime = new Date().getTime() - (latestPackedTx.createdAt ?? 0);
-          this.logger(
-            `gapTime: ${gapTime}  timeout: ${getTimeout(
-              await this.getChainId()
-            )} createdAt: ${latestPackedTx.createdAt}`
-          );
+          // this.logger(
+          //   `gapTime: ${gapTime}  timeout: ${getTimeout(
+          //     await this.getChainId()
+          //   )} createdAt: ${latestPackedTx.createdAt}`
+          // );
           if (gapTime > getTimeout(await this.getChainId())) {
             // Timeout
             this.logger("TIMEOUT REPACK");
@@ -362,7 +381,11 @@ export class ParallelSigner extends Wallet {
 
     let rtx = await this.buildTransactionRequest(txParam, nonce);
     // Populate and sign the transaction
-    rtx = await this.populateTransaction(rtx);
+    rtx = await this.populateTransaction(rtx).catch((err) => {
+      this.loggerError("ERROR populateTransaction ");
+      throw err;
+    });
+
     const signedTx = await this.signTransaction(rtx);
     let txid = keccak256(signedTx);
     let requestsIds: number[] = requests.map((v) => {
@@ -402,7 +425,10 @@ export class ParallelSigner extends Wallet {
         ":" +
         maxPriorityFeePerGas
     );
-    this.sendRawTransaction(rtx, signedTx, packedTx);
+    this.sendRawTransaction(rtx, signedTx, packedTx).catch((err) => {
+      this.loggerError("ERROR: sendRawTransaction");
+      this.loggerError(err);
+    });
   }
 
   private async buildTransactionRequest(
