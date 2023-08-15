@@ -26,10 +26,11 @@ class ParallelSigner extends ethers_1.Wallet {
         this.mockProvider = {}; //TODO only for test,
         //TODO should refactor. At least support two types of log output: info and debug
         this.logger = console.log;
+        this.loggerError = console.error;
         this.timeHandler = [];
         // Each repacked transaction should be an independent process, discovering the current state on the chain, checking the progress in the database, and finding the correct starting position for the request
         this.repacking = false;
-        this.options = Object.assign({ requestCountLimit: 10, delayedSecond: 0, checkPackedTransactionIntervalSecond: 15, confirmations: 64 }, options);
+        this.options = Object.assign({ requestCountLimit: 10, delayedSecond: 0, checkPackedTransactionIntervalSecond: 60, confirmations: 64 }, options);
         if (requestStore === undefined) {
             throw Error("request store is undefined");
         }
@@ -80,16 +81,33 @@ class ParallelSigner extends ethers_1.Wallet {
             this.logger = _logger;
         });
     }
+    setLoggerError(_logger) {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.loggerError = _logger;
+        });
+    }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
             this.timeHandler[0] = setInterval(() => __awaiter(this, void 0, void 0, function* () {
-                yield this.checkPackedTransaction();
+                try {
+                    yield this.checkPackedTransaction();
+                }
+                catch (err) {
+                    this.loggerError("ERROR checkPackedTransactionInterval");
+                    this.loggerError(err);
+                }
             }), this.options.checkPackedTransactionIntervalSecond * 1000);
             const intervalTime = this.options.delayedSecond === 0
                 ? (0, timer_1.getTimeout)(yield this.getChainId()) / 2000 // If there is no delay configuration, the default check time is half of the expiration time
                 : this.options.delayedSecond;
             this.timeHandler[1] = setInterval(() => __awaiter(this, void 0, void 0, function* () {
-                yield this.rePackedTransaction();
+                try {
+                    yield this.rePackedTransaction();
+                }
+                catch (err) {
+                    this.loggerError("ERROR rePackedTransactionInterval");
+                    this.loggerError(err);
+                }
             }), intervalTime * 1000);
         });
     }
@@ -134,7 +152,13 @@ class ParallelSigner extends ethers_1.Wallet {
             // When there is no delay, only process transactions within the limit of the requestCountLimit for this batch. Others will be stored in the database and processed by the scheduled task.
             // The requests may exceed the limit, but the rePackedTransaction method will handle the limit
             if (this.options.delayedSecond == 0) {
-                yield this.rePackedTransaction();
+                try {
+                    yield this.rePackedTransaction();
+                }
+                catch (err) {
+                    this.loggerError("ERROR sendTransactions rePackedTransaction");
+                    this.loggerError(err);
+                }
             }
             return res;
         });
@@ -145,17 +169,15 @@ class ParallelSigner extends ethers_1.Wallet {
                 return null;
             this.repacking = true;
             const currentNonce = yield this.getTransactionCount("latest");
-            const requests = yield this.getRepackRequests();
+            const requests = yield this.getRepackRequests(currentNonce);
             yield this.sendPackedTransaction(requests, currentNonce);
             this.repacking = false;
-            return true;
         });
     }
-    getRepackRequests() {
+    getRepackRequests(currentNonce) {
         var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
             let latestPackedTx = yield this.requestStore.getLatestPackedTransaction(yield this.getChainId());
-            const currentNonce = yield this.getTransactionCount("latest");
             let minimalId = 0; // Start searching for requests from this id
             // If latestPackedTx exists, find minimalId to search for requests
             if (latestPackedTx !== null) {
@@ -173,7 +195,11 @@ class ParallelSigner extends ethers_1.Wallet {
                     else {
                         // If there is no new data or the limit has been reached, check if it has timed out
                         let gapTime = new Date().getTime() - ((_a = latestPackedTx.createdAt) !== null && _a !== void 0 ? _a : 0);
-                        this.logger(`gapTime: ${gapTime}  timeout: ${(0, timer_1.getTimeout)(yield this.getChainId())} createdAt: ${latestPackedTx.createdAt}`);
+                        // this.logger(
+                        //   `gapTime: ${gapTime}  timeout: ${getTimeout(
+                        //     await this.getChainId()
+                        //   )} createdAt: ${latestPackedTx.createdAt}`
+                        // );
                         if (gapTime > (0, timer_1.getTimeout)(yield this.getChainId())) {
                             // Timeout
                             this.logger("TIMEOUT REPACK");
@@ -247,7 +273,10 @@ class ParallelSigner extends ethers_1.Wallet {
             let { maxPriorityFeePerGas, maxFeePerGas, gasPrice } = txParam;
             let rtx = yield this.buildTransactionRequest(txParam, nonce);
             // Populate and sign the transaction
-            rtx = yield this.populateTransaction(rtx);
+            rtx = yield this.populateTransaction(rtx).catch((err) => {
+                this.loggerError("ERROR populateTransaction ");
+                throw err;
+            });
             const signedTx = yield this.signTransaction(rtx);
             let txid = (0, ethers_1.keccak256)(signedTx);
             let requestsIds = requests.map((v) => {
@@ -284,7 +313,10 @@ class ParallelSigner extends ethers_1.Wallet {
                 maxFeePerGas +
                 ":" +
                 maxPriorityFeePerGas);
-            this.sendRawTransaction(rtx, signedTx, packedTx);
+            this.sendRawTransaction(rtx, signedTx, packedTx).catch((err) => {
+                this.loggerError("ERROR: sendRawTransaction");
+                this.loggerError(err);
+            });
         });
     }
     buildTransactionRequest(txParam, nonce) {

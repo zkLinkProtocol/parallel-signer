@@ -56,7 +56,9 @@ export declare class ParallelSigner extends Wallet {
     getTransactionCount(tag: string): Promise<number>;
     getTransactionReceipt(tx: string): Promise<TransactionReceipt>;
     private logger;
+    private loggerError;
     setLogger(_logger: (...data: any[]) => any): Promise<void>;
+    setLoggerError(_logger: (...data: any[]) => any): Promise<void>;
     init(): Promise<void>;
     private timeHandler;
     clearTimeHandler(): Promise<void>;
