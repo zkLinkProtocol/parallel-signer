@@ -7,7 +7,6 @@ import {
   TransactionReceipt,
   keccak256,
   TransactionRequest,
-  Provider,
 } from "ethers";
 import { __setTimeoutConfig, getTimeout } from "./timer";
 
@@ -109,7 +108,7 @@ export class ParallelSigner extends Wallet {
     this.options = {
       requestCountLimit: 10,
       delayedSecond: 0,
-      checkPackedTransactionIntervalSecond: 15,
+      checkPackedTransactionIntervalSecond: 60,
       confirmations: 64,
       ...options,
     };
@@ -249,20 +248,18 @@ export class ParallelSigner extends Wallet {
 
   // Each repacked transaction should be an independent process, discovering the current state on the chain, checking the progress in the database, and finding the correct starting position for the request
   private repacking = false;
-  private async rePackedTransaction(): Promise<true | null> {
+  private async rePackedTransaction() {
     if (this.repacking) return null;
     this.repacking = true;
     const currentNonce: number = await this.getTransactionCount("latest");
-    const requests = await this.getRepackRequests();
+    const requests = await this.getRepackRequests(currentNonce);
     await this.sendPackedTransaction(requests, currentNonce);
     this.repacking = false;
-    return true;
   }
-  private async getRepackRequests(): Promise<Request[]> {
+  private async getRepackRequests(currentNonce: number): Promise<Request[]> {
     let latestPackedTx = await this.requestStore.getLatestPackedTransaction(
       await this.getChainId()
     );
-    const currentNonce: number = await this.getTransactionCount("latest");
     let minimalId = 0; // Start searching for requests from this id
 
     // If latestPackedTx exists, find minimalId to search for requests
