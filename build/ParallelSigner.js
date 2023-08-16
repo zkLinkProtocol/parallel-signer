@@ -402,12 +402,10 @@ class ParallelSigner extends ethers_1.Wallet {
                     if (txRcpt != null) {
                         if (this.options.checkConfirmation &&
                             typeof this.options.checkConfirmation === "function") {
-                            try {
-                                this.options.checkConfirmation(txRcpt);
-                            }
-                            catch (ex) {
-                                this.logger(ex);
-                            }
+                            this.options.checkConfirmation(txRcpt).catch((err) => {
+                                this.loggerError("this.options.checkConfirmation");
+                                this.loggerError(err);
+                            });
                         }
                         if ((yield txRcpt.confirmations()) >= this.options.confirmations) {
                             // Set request txid by v.txhash
