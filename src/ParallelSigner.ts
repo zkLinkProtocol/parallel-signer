@@ -175,6 +175,12 @@ export class ParallelSigner extends Wallet {
         await this.checkPackedTransaction();
       } catch (err) {
         this.loggerError("ERROR checkPackedTransactionInterval");
+        try {
+          const chainid = await this.getChainId();
+          this.loggerError("ERROR " + chainid);
+        } catch {
+          this.loggerError("ERROR this.getChainId()");
+        }
         this.loggerError(err);
       }
     }, this.options.checkPackedTransactionIntervalSecond * 1000);
@@ -188,6 +194,12 @@ export class ParallelSigner extends Wallet {
         await this.rePackedTransaction();
       } catch (err) {
         this.loggerError("ERROR rePackedTransactionInterval");
+        try {
+          const chainid = await this.getChainId();
+          this.loggerError("ERROR " + chainid);
+        } catch {
+          this.loggerError("ERROR this.getChainId()");
+        }
         this.loggerError(err);
       }
     }, intervalTime * 1000);

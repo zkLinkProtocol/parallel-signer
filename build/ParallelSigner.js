@@ -94,6 +94,13 @@ class ParallelSigner extends ethers_1.Wallet {
                 }
                 catch (err) {
                     this.loggerError("ERROR checkPackedTransactionInterval");
+                    try {
+                        const chainid = yield this.getChainId();
+                        this.loggerError("ERROR " + chainid);
+                    }
+                    catch (_a) {
+                        this.loggerError("ERROR this.getChainId()");
+                    }
                     this.loggerError(err);
                 }
             }), this.options.checkPackedTransactionIntervalSecond * 1000);
@@ -106,6 +113,13 @@ class ParallelSigner extends ethers_1.Wallet {
                 }
                 catch (err) {
                     this.loggerError("ERROR rePackedTransactionInterval");
+                    try {
+                        const chainid = yield this.getChainId();
+                        this.loggerError("ERROR " + chainid);
+                    }
+                    catch (_b) {
+                        this.loggerError("ERROR this.getChainId()");
+                    }
                     this.loggerError(err);
                 }
             }), intervalTime * 1000);
