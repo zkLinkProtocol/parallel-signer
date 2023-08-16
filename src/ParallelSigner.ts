@@ -78,7 +78,7 @@ export interface ParallelSignerOptions {
   readonly delayedSecond: number; // default: 0
   readonly checkPackedTransactionIntervalSecond: number; // default: 15
   readonly confirmations: number; // default: 64
-  readonly checkConfirmation?: (recpt: TransactionReceipt) => void;
+  readonly checkConfirmation?: (recpt: TransactionReceipt) => Promise<void>;
 }
 
 export interface PopulateReturnType {
@@ -534,11 +534,10 @@ export class ParallelSigner extends Wallet {
             this.options.checkConfirmation &&
             typeof this.options.checkConfirmation === "function"
           ) {
-            try {
-              this.options.checkConfirmation(txRcpt);
-            } catch (ex) {
-              this.logger(ex);
-            }
+            this.options.checkConfirmation(txRcpt).catch((err) => {
+              this.loggerError("this.options.checkConfirmation");
+              this.loggerError(err);
+            });
           }
 
           if ((await txRcpt.confirmations()) >= this.options.confirmations) {
