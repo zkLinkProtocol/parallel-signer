@@ -487,32 +487,42 @@ export class ParallelSigner extends Wallet {
     if (notNil(maxFeePerGas) && notNil(maxPriorityFeePerGas)) {
       const nextMaxFeePerGas: BigNumberish =
         (BigInt(latestPackedTx.maxFeePerGas) * BigInt(110)) / BigInt(100);
-      const finalMaxFeePerGas =
-        nextMaxFeePerGas > BigInt(maxFeePerGas)
-          ? nextMaxFeePerGas
-          : maxFeePerGas;
-      rtx.maxFeePerGas = finalMaxFeePerGas;
+
+      rtx.maxFeePerGas = this.getFinalPrice(
+        BigInt(maxFeePerGas),
+        nextMaxFeePerGas
+      );
 
       const nextMaxPriorityFeePerGas =
         (BigInt(latestPackedTx.maxPriorityFeePerGas) * BigInt(110)) /
         BigInt(100);
-      const finalMaxPriorityFeePerGas =
-        nextMaxPriorityFeePerGas > BigInt(maxPriorityFeePerGas)
-          ? nextMaxPriorityFeePerGas
-          : maxPriorityFeePerGas;
 
-      rtx.maxPriorityFeePerGas = finalMaxPriorityFeePerGas;
+      rtx.maxPriorityFeePerGas = this.getFinalPrice(
+        BigInt(maxPriorityFeePerGas),
+        nextMaxPriorityFeePerGas
+      );
     } else if (notNil(gasPrice)) {
       const nextGasPrice =
         (BigInt(latestPackedTx.gasPrice) * BigInt(110)) / BigInt(100);
-      const finalGasPrice =
-        nextGasPrice > BigInt(gasPrice) ? nextGasPrice : gasPrice;
-      rtx.gasPrice = finalGasPrice;
+
+      rtx.gasPrice = this.getFinalPrice(BigInt(gasPrice), nextGasPrice);
     } else {
       throw new Error("gas price error");
     }
 
     return rtx;
+  }
+  private getFinalPrice(currentPrice: bigint, nextPrice: bigint): bigint {
+    if (nextPrice > currentPrice) {
+      const doubleCurrentPrice = currentPrice * BigInt(4);
+      if (doubleCurrentPrice > nextPrice) {
+        return nextPrice;
+      } else {
+        return doubleCurrentPrice;
+      }
+    } else {
+      return currentPrice;
+    }
   }
   private async checkConfirmations(nonce: number): Promise<number> {
     let packedTxs = await this.requestStore.getPackedTransaction(
@@ -565,6 +575,7 @@ export class ParallelSigner extends Wallet {
 
     return result;
   }
+
   /**
    * Scheduled task with two purposes
    * 1. Check the on-chain status of PackedTransaction

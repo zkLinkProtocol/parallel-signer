@@ -80,6 +80,7 @@ export declare class ParallelSigner extends Wallet {
      */
     private sendPackedTransaction;
     private buildTransactionRequest;
+    private getFinalPrice;
     private checkConfirmations;
     /**
      * Scheduled task with two purposes

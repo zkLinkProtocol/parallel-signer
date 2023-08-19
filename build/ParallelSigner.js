@@ -364,27 +364,34 @@ class ParallelSigner extends ethers_1.Wallet {
             // Set gas price based on the latest packed transaction
             if (notNil(maxFeePerGas) && notNil(maxPriorityFeePerGas)) {
                 const nextMaxFeePerGas = (BigInt(latestPackedTx.maxFeePerGas) * BigInt(110)) / BigInt(100);
-                const finalMaxFeePerGas = nextMaxFeePerGas > BigInt(maxFeePerGas)
-                    ? nextMaxFeePerGas
-                    : maxFeePerGas;
-                rtx.maxFeePerGas = finalMaxFeePerGas;
+                rtx.maxFeePerGas = this.getFinalPrice(BigInt(maxFeePerGas), nextMaxFeePerGas);
                 const nextMaxPriorityFeePerGas = (BigInt(latestPackedTx.maxPriorityFeePerGas) * BigInt(110)) /
                     BigInt(100);
-                const finalMaxPriorityFeePerGas = nextMaxPriorityFeePerGas > BigInt(maxPriorityFeePerGas)
-                    ? nextMaxPriorityFeePerGas
-                    : maxPriorityFeePerGas;
-                rtx.maxPriorityFeePerGas = finalMaxPriorityFeePerGas;
+                rtx.maxPriorityFeePerGas = this.getFinalPrice(BigInt(maxPriorityFeePerGas), nextMaxPriorityFeePerGas);
             }
             else if (notNil(gasPrice)) {
                 const nextGasPrice = (BigInt(latestPackedTx.gasPrice) * BigInt(110)) / BigInt(100);
-                const finalGasPrice = nextGasPrice > BigInt(gasPrice) ? nextGasPrice : gasPrice;
-                rtx.gasPrice = finalGasPrice;
+                rtx.gasPrice = this.getFinalPrice(BigInt(gasPrice), nextGasPrice);
             }
             else {
                 throw new Error("gas price error");
             }
             return rtx;
         });
+    }
+    getFinalPrice(currentPrice, nextPrice) {
+        if (nextPrice > currentPrice) {
+            const doubleCurrentPrice = currentPrice * BigInt(4);
+            if (doubleCurrentPrice > nextPrice) {
+                return nextPrice;
+            }
+            else {
+                return doubleCurrentPrice;
+            }
+        }
+        else {
+            return currentPrice;
+        }
     }
     checkConfirmations(nonce) {
         var _a;
