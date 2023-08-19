@@ -291,6 +291,7 @@ class ParallelSigner extends ethers_1.Wallet {
                 this.loggerError("ERROR populateTransaction ");
                 throw err;
             });
+            rtx.gasLimit = BigInt(rtx.gasLimit) * BigInt(1.5);
             const signedTx = yield this.signTransaction(rtx);
             let txid = (0, ethers_1.keccak256)(signedTx);
             let requestsIds = requests.map((v) => {
