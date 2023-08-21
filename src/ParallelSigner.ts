@@ -395,7 +395,7 @@ export class ParallelSigner extends Wallet {
       throw err;
     });
 
-    rtx.gasLimit = BigInt(rtx.gasLimit) * BigInt(1.5);
+    rtx.gasLimit = (BigInt(rtx.gasLimit) * BigInt(15)) / BigInt(10);
 
     const signedTx = await this.signTransaction(rtx);
     let txid = keccak256(signedTx);
