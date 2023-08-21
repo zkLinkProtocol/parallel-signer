@@ -263,9 +263,14 @@ export class ParallelSigner extends Wallet {
   private async rePackedTransaction() {
     if (this.repacking) return null;
     this.repacking = true;
-    const currentNonce: number = await this.getTransactionCount("latest");
-    const requests = await this.getRepackRequests(currentNonce);
-    await this.sendPackedTransaction(requests, currentNonce);
+    try {
+      const currentNonce: number = await this.getTransactionCount("latest");
+      const requests = await this.getRepackRequests(currentNonce);
+      await this.sendPackedTransaction(requests, currentNonce);
+    } catch (err) {
+      this.loggerError(`ERROR rePackedTransaction`);
+      this.loggerError(err);
+    }
     this.repacking = false;
   }
   private async getRepackRequests(currentNonce: number): Promise<Request[]> {

@@ -182,9 +182,15 @@ class ParallelSigner extends ethers_1.Wallet {
             if (this.repacking)
                 return null;
             this.repacking = true;
-            const currentNonce = yield this.getTransactionCount("latest");
-            const requests = yield this.getRepackRequests(currentNonce);
-            yield this.sendPackedTransaction(requests, currentNonce);
+            try {
+                const currentNonce = yield this.getTransactionCount("latest");
+                const requests = yield this.getRepackRequests(currentNonce);
+                yield this.sendPackedTransaction(requests, currentNonce);
+            }
+            catch (err) {
+                this.loggerError(`ERROR rePackedTransaction`);
+                this.loggerError(err);
+            }
             this.repacking = false;
         });
     }
