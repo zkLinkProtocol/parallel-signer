@@ -79,6 +79,7 @@ export interface ParallelSignerOptions {
   readonly checkPackedTransactionIntervalSecond: number; // default: 15
   readonly confirmations: number; // default: 64
   readonly checkConfirmation?: (recpt: TransactionReceipt) => Promise<void>;
+  readonly layer2ChainId?: number;
 }
 
 export interface PopulateReturnType {
@@ -110,6 +111,7 @@ export class ParallelSigner extends Wallet {
       delayedSecond: 0,
       checkPackedTransactionIntervalSecond: 60,
       confirmations: 64,
+      layer2ChainId: 0,
       ...options,
     };
 
@@ -169,18 +171,26 @@ export class ParallelSigner extends Wallet {
   async setLoggerError(_logger: (...data: any[]) => any) {
     this.loggerError = _logger;
   }
+
+  private async printLayer2ChainId() {
+    if (this.options.layer2ChainId === 0) {
+      try {
+        const chainid = await this.getChainId();
+        this.loggerError("ERROR LAYER1 CHAIN_ID : " + chainid);
+      } catch {
+        this.loggerError("ERROR this.getChainId()");
+      }
+    } else {
+      this.loggerError(`ERROR LAYER2 CHAIN_ID : ${this.options.layer2ChainId}`);
+    }
+  }
   async init() {
     this.timeHandler[0] = setInterval(async () => {
       try {
         await this.checkPackedTransaction();
       } catch (err) {
         this.loggerError("ERROR checkPackedTransactionInterval");
-        try {
-          const chainid = await this.getChainId();
-          this.loggerError("ERROR " + chainid);
-        } catch {
-          this.loggerError("ERROR this.getChainId()");
-        }
+        this.printLayer2ChainId();
         this.loggerError(err);
       }
     }, this.options.checkPackedTransactionIntervalSecond * 1000);
@@ -194,12 +204,7 @@ export class ParallelSigner extends Wallet {
         await this.rePackedTransaction();
       } catch (err) {
         this.loggerError("ERROR rePackedTransactionInterval");
-        try {
-          const chainid = await this.getChainId();
-          this.loggerError("ERROR " + chainid);
-        } catch {
-          this.loggerError("ERROR this.getChainId()");
-        }
+        this.printLayer2ChainId();
         this.loggerError(err);
       }
     }, intervalTime * 1000);
@@ -252,6 +257,7 @@ export class ParallelSigner extends Wallet {
         await this.rePackedTransaction();
       } catch (err) {
         this.loggerError("ERROR sendTransactions rePackedTransaction");
+        this.printLayer2ChainId();
         this.loggerError(err);
       }
     }
@@ -269,6 +275,7 @@ export class ParallelSigner extends Wallet {
       await this.sendPackedTransaction(requests, currentNonce);
     } catch (err) {
       this.loggerError(`ERROR rePackedTransaction`);
+      this.printLayer2ChainId();
       this.loggerError(err);
     }
     this.repacking = false;
@@ -397,6 +404,7 @@ export class ParallelSigner extends Wallet {
     // Populate and sign the transaction
     rtx = await this.populateTransaction(rtx).catch((err) => {
       this.loggerError("ERROR populateTransaction ");
+      this.printLayer2ChainId();
       throw err;
     });
 
@@ -443,6 +451,7 @@ export class ParallelSigner extends Wallet {
     );
     this.sendRawTransaction(rtx, signedTx, packedTx).catch((err) => {
       this.loggerError("ERROR: sendRawTransaction");
+      this.printLayer2ChainId();
       this.loggerError(err);
     });
   }
@@ -553,6 +562,7 @@ export class ParallelSigner extends Wallet {
           ) {
             this.options.checkConfirmation(txRcpt).catch((err) => {
               this.loggerError("this.options.checkConfirmation");
+              this.printLayer2ChainId();
               this.loggerError(err);
             });
           }

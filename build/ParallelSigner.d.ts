@@ -35,6 +35,7 @@ export interface ParallelSignerOptions {
     readonly checkPackedTransactionIntervalSecond: number;
     readonly confirmations: number;
     readonly checkConfirmation?: (recpt: TransactionReceipt) => Promise<void>;
+    readonly layer2ChainId?: number;
 }
 export interface PopulateReturnType {
     to: string;
@@ -59,6 +60,7 @@ export declare class ParallelSigner extends Wallet {
     private loggerError;
     setLogger(_logger: (...data: any[]) => any): Promise<void>;
     setLoggerError(_logger: (...data: any[]) => any): Promise<void>;
+    private printLayer2ChainId;
     init(): Promise<void>;
     private timeHandler;
     clearTimeHandler(): Promise<void>;
