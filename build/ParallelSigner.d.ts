@@ -81,7 +81,7 @@ export declare class ParallelSigner extends Wallet {
     private sendPackedTransaction;
     private buildTransactionRequest;
     private getFinalPrice;
-    private checkConfirmations;
+    checkConfirmations(nonce: number): Promise<number>;
     /**
      * Scheduled task with two purposes
      * 1. Check the on-chain status of PackedTransaction

@@ -531,7 +531,7 @@ export class ParallelSigner extends Wallet {
       return currentPrice;
     }
   }
-  private async checkConfirmations(nonce: number): Promise<number> {
+  async checkConfirmations(nonce: number): Promise<number> {
     let packedTxs = await this.requestStore.getPackedTransaction(
       nonce,
       await this.getChainId()
