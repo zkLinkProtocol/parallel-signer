@@ -275,10 +275,10 @@ export class ParallelSigner extends Wallet {
       await this.sendPackedTransaction(requests, currentNonce);
     } catch (err) {
       this.loggerError(`ERROR rePackedTransaction`);
-      this.printLayer2ChainId();
-      this.loggerError(err);
+      throw err;
+    } finally {
+      this.repacking = false;
     }
-    this.repacking = false;
   }
   private async getRepackRequests(currentNonce: number): Promise<Request[]> {
     let latestPackedTx = await this.requestStore.getLatestPackedTransaction(
