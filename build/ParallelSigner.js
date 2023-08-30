@@ -194,10 +194,11 @@ class ParallelSigner extends ethers_1.Wallet {
             }
             catch (err) {
                 this.loggerError(`ERROR rePackedTransaction`);
-                this.printLayer2ChainId();
-                this.loggerError(err);
+                throw err;
             }
-            this.repacking = false;
+            finally {
+                this.repacking = false;
+            }
         });
     }
     getRepackRequests(currentNonce) {
