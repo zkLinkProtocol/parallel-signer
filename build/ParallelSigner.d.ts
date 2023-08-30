@@ -35,7 +35,7 @@ export interface ParallelSignerOptions {
     readonly checkPackedTransactionIntervalSecond: number;
     readonly confirmations: number;
     readonly checkConfirmation?: (recpt: TransactionReceipt) => Promise<void>;
-    readonly layer2ChainId?: number;
+    readonly layer1ChainId: number;
 }
 export interface PopulateReturnType {
     to: string;
@@ -51,7 +51,7 @@ export declare class ParallelSigner extends Wallet {
     private populateFun;
     options: ParallelSignerOptions;
     constructor(privateKey: string | SigningKey, provider: JsonRpcProvider, requestStore: IOrderedRequestStore, populateFun: (requests: Request[]) => Promise<PopulateReturnType>, options?: Partial<ParallelSignerOptions>);
-    getChainId(): Promise<number>;
+    getChainId(): number;
     mockProvider: {};
     sendRawTransaction(transaction: TransactionRequest, rawTx: string, packedTx: PackedTransaction): Promise<TransactionResponse>;
     getTransactionCount(tag: string): Promise<number>;
@@ -60,7 +60,7 @@ export declare class ParallelSigner extends Wallet {
     private loggerError;
     setLogger(_logger: (...data: any[]) => any): Promise<void>;
     setLoggerError(_logger: (...data: any[]) => any): Promise<void>;
-    private printLayer2ChainId;
+    private printLayer1ChainId;
     init(): Promise<void>;
     private timeHandler;
     clearTimeHandler(): Promise<void>;

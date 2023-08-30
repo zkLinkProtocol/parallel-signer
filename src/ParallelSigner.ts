@@ -177,16 +177,7 @@ export class ParallelSigner extends Wallet {
   }
 
   private async printLayer1ChainId() {
-    if (this.getChainId() === 0) {
-      try {
-        const chainid = this.getChainId();
-        this.loggerError("ERROR LAYER1 CHAIN_ID : " + chainid);
-      } catch {
-        this.loggerError("ERROR this.getChainId()");
-      }
-    } else {
-      this.loggerError(`ERROR LAYER2 CHAIN_ID : ${this.getChainId()}`);
-    }
+    this.loggerError(`ERROR LAYER2 CHAIN_ID : ${this.getChainId()}`);
   }
   async init() {
     this.timeHandler[0] = setInterval(async () => {
