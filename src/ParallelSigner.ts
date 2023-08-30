@@ -79,7 +79,7 @@ export interface ParallelSignerOptions {
   readonly checkPackedTransactionIntervalSecond: number; // default: 15
   readonly confirmations: number; // default: 64
   readonly checkConfirmation?: (recpt: TransactionReceipt) => Promise<void>;
-  readonly layer2ChainId?: number;
+  readonly layer1ChainId: number;
 }
 
 export interface PopulateReturnType {
@@ -106,12 +106,16 @@ export class ParallelSigner extends Wallet {
   ) {
     super(privateKey, provider);
 
+    if (!options.layer1ChainId) {
+      throw new Error("layer1ChainId required");
+    }
+
     this.options = {
       requestCountLimit: 10,
       delayedSecond: 0,
       checkPackedTransactionIntervalSecond: 60,
       confirmations: 64,
-      layer2ChainId: 0,
+      layer1ChainId: options.layer1ChainId,
       ...options,
     };
 
@@ -120,7 +124,7 @@ export class ParallelSigner extends Wallet {
     }
   }
   async getChainId(): Promise<number> {
-    return Number((await this.provider.getNetwork()).chainId);
+    return Number(this.options.layer1ChainId);
   }
   public mockProvider = {}; //TODO only for test,
   //TODO only for test
@@ -172,8 +176,8 @@ export class ParallelSigner extends Wallet {
     this.loggerError = _logger;
   }
 
-  private async printLayer2ChainId() {
-    if (this.options.layer2ChainId === 0) {
+  private async printLayer1ChainId() {
+    if (this.options.layer1ChainId === 0) {
       try {
         const chainid = await this.getChainId();
         this.loggerError("ERROR LAYER1 CHAIN_ID : " + chainid);
@@ -181,7 +185,7 @@ export class ParallelSigner extends Wallet {
         this.loggerError("ERROR this.getChainId()");
       }
     } else {
-      this.loggerError(`ERROR LAYER2 CHAIN_ID : ${this.options.layer2ChainId}`);
+      this.loggerError(`ERROR LAYER2 CHAIN_ID : ${this.options.layer1ChainId}`);
     }
   }
   async init() {
@@ -190,7 +194,7 @@ export class ParallelSigner extends Wallet {
         await this.checkPackedTransaction();
       } catch (err) {
         this.loggerError("ERROR checkPackedTransactionInterval");
-        this.printLayer2ChainId();
+        this.printLayer1ChainId();
         this.loggerError(err);
       }
     }, this.options.checkPackedTransactionIntervalSecond * 1000);
@@ -204,7 +208,7 @@ export class ParallelSigner extends Wallet {
         await this.rePackedTransaction();
       } catch (err) {
         this.loggerError("ERROR rePackedTransactionInterval");
-        this.printLayer2ChainId();
+        this.printLayer1ChainId();
         this.loggerError(err);
       }
     }, intervalTime * 1000);
@@ -257,7 +261,7 @@ export class ParallelSigner extends Wallet {
         await this.rePackedTransaction();
       } catch (err) {
         this.loggerError("ERROR sendTransactions rePackedTransaction");
-        this.printLayer2ChainId();
+        this.printLayer1ChainId();
         this.loggerError(err);
       }
     }
@@ -275,7 +279,7 @@ export class ParallelSigner extends Wallet {
       await this.sendPackedTransaction(requests, currentNonce);
     } catch (err) {
       this.loggerError(`ERROR rePackedTransaction`);
-      this.printLayer2ChainId();
+      this.printLayer1ChainId();
       this.loggerError(err);
     }
     this.repacking = false;
@@ -404,7 +408,7 @@ export class ParallelSigner extends Wallet {
     // Populate and sign the transaction
     rtx = await this.populateTransaction(rtx).catch((err) => {
       this.loggerError("ERROR populateTransaction ");
-      this.printLayer2ChainId();
+      this.printLayer1ChainId();
       throw err;
     });
 
@@ -451,7 +455,7 @@ export class ParallelSigner extends Wallet {
     );
     this.sendRawTransaction(rtx, signedTx, packedTx).catch((err) => {
       this.loggerError("ERROR: sendRawTransaction");
-      this.printLayer2ChainId();
+      this.printLayer1ChainId();
       this.loggerError(err);
     });
   }
@@ -562,7 +566,7 @@ export class ParallelSigner extends Wallet {
           ) {
             this.options.checkConfirmation(txRcpt).catch((err) => {
               this.loggerError("this.options.checkConfirmation");
-              this.printLayer2ChainId();
+              this.printLayer1ChainId();
               this.loggerError(err);
             });
           }
