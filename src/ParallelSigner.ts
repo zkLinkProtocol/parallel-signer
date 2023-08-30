@@ -115,7 +115,7 @@ export class ParallelSigner extends Wallet {
       delayedSecond: 0,
       checkPackedTransactionIntervalSecond: 60,
       confirmations: 64,
-      layer1ChainId: options.layer1ChainId,
+      layer1ChainId: 0,
       ...options,
     };
 
@@ -123,7 +123,7 @@ export class ParallelSigner extends Wallet {
       throw Error("request store is undefined");
     }
   }
-  async getChainId(): Promise<number> {
+  getChainId(): number {
     return Number(this.options.layer1ChainId);
   }
   public mockProvider = {}; //TODO only for test,
@@ -177,7 +177,7 @@ export class ParallelSigner extends Wallet {
   }
 
   private async printLayer1ChainId() {
-    if (this.options.layer1ChainId === 0) {
+    if (this.getChainId() === 0) {
       try {
         const chainid = await this.getChainId();
         this.loggerError("ERROR LAYER1 CHAIN_ID : " + chainid);
@@ -185,7 +185,7 @@ export class ParallelSigner extends Wallet {
         this.loggerError("ERROR this.getChainId()");
       }
     } else {
-      this.loggerError(`ERROR LAYER2 CHAIN_ID : ${this.options.layer1ChainId}`);
+      this.loggerError(`ERROR LAYER2 CHAIN_ID : ${this.getChainId()}`);
     }
   }
   async init() {
