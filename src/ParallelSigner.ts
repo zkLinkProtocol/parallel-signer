@@ -71,6 +71,35 @@ export abstract class IOrderedRequestStore {
   ): Promise<PackedTransaction | null>;
 
   abstract setPackedTransactionConfirmation(id: number, confirmation: number);
+
+  /**
+   * 
+   * WITH NonceWithAllZero AS (
+      SELECT 
+        nonce
+      FROM 
+        packed_transactions
+      WHERE 
+        nonce < ${nonce}
+      GROUP BY 
+        nonce
+      HAVING 
+        SUM(confirmation) = 0 AND COUNT(*) > 1
+    )
+
+    SELECT 
+      p.*
+    FROM 
+      packed_transactions p
+    JOIN 
+      NonceWithAllZero nz ON p.nonce = nz.nonce
+    WHERE 
+      p.confirmation = 0;
+
+   */
+  abstract getUnconfirmedTransactionsWithSameNonce(
+    nonce: number
+  ): Promise<PackedTransaction[]>;
 }
 
 export interface ParallelSignerOptions {
@@ -537,6 +566,42 @@ export class ParallelSigner extends Wallet {
       return currentPrice;
     }
   }
+  private async checkRecipt(
+    v: PackedTransaction,
+    result: number
+  ): Promise<[boolean, number]> {
+    let txRcpt = await this.getTransactionReceipt(v.transactionHash);
+    if (txRcpt != null) {
+      if (
+        this.options.checkConfirmation &&
+        typeof this.options.checkConfirmation === "function"
+      ) {
+        this.options.checkConfirmation(txRcpt).catch((err) => {
+          this.loggerError("this.options.checkConfirmation");
+          this.printLayer1ChainId();
+          this.loggerError(err);
+        });
+      }
+
+      if ((await txRcpt.confirmations()) >= this.options.confirmations) {
+        // Set request txid by v.txhash
+        await this.requestStore.updateRequestBatch(
+          v.requestIds,
+          v.transactionHash
+        );
+        // If data satisfying the confirmation requirement is found, return 0 to stop further searching
+        result = 0;
+      }
+      // Update confirmation to db
+      await this.requestStore.setPackedTransactionConfirmation(
+        v.id ?? 0,
+        await txRcpt.confirmations()
+      );
+      // There can be at most one packedTx with data on the chain
+      return [true, result];
+    }
+    return [false, result];
+  }
   async checkConfirmations(nonce: number): Promise<number> {
     let packedTxs = await this.requestStore.getPackedTransaction(
       nonce,
@@ -550,43 +615,14 @@ export class ParallelSigner extends Wallet {
     for (let k in packedTxs) {
       let v = packedTxs[k];
       if (v.confirmation < this.options.confirmations) {
-        let txRcpt = await this.getTransactionReceipt(v.transactionHash);
-
-        if (txRcpt != null) {
-          if (
-            this.options.checkConfirmation &&
-            typeof this.options.checkConfirmation === "function"
-          ) {
-            this.options.checkConfirmation(txRcpt).catch((err) => {
-              this.loggerError("this.options.checkConfirmation");
-              this.printLayer1ChainId();
-              this.loggerError(err);
-            });
-          }
-
-          if ((await txRcpt.confirmations()) >= this.options.confirmations) {
-            // Set request txid by v.txhash
-            await this.requestStore.updateRequestBatch(
-              v.requestIds,
-              v.transactionHash
-            );
-            // If data satisfying the confirmation requirement is found, return 0 to stop further searching
-            result = 0;
-          }
-          // Update confirmation to db
-          await this.requestStore.setPackedTransactionConfirmation(
-            v.id ?? 0,
-            await txRcpt.confirmations()
-          );
-          // There can be at most one packedTx with data on the chain
-          break;
-        }
+        let [isBreak, _result] = await this.checkRecipt(v, result);
+        result = _result;
+        if (isBreak) break;
       } else {
         result = 0; // Already found data satisfying the confirmation requirement, immediately exit the loop
         break;
       }
     }
-
     return result;
   }
 
@@ -618,6 +654,7 @@ export class ParallelSigner extends Wallet {
 
     let lastCheckedId = lastestTx.id ?? 0;
     lastCheckedId += 1; // Ensure that this batch is within the check of the while loop
+    let lastCheckedNonce = lastestTx.nonce;
     while (lastCheckedId > 0) {
       // Find the next one
       let nextTx = await this.requestStore.getMaxIDPackedTransaction(
@@ -634,6 +671,27 @@ export class ParallelSigner extends Wallet {
       }
       // Use return 0 to interrupt the while loop
       lastCheckedId = await this.checkConfirmations(nextTx.nonce);
+      lastCheckedNonce = nextTx.nonce;
+    }
+
+    let packedTxs: PackedTransaction[] =
+      await this.requestStore.getUnconfirmedTransactionsWithSameNonce(
+        lastCheckedNonce
+      );
+    let isHaveSuccess = false;
+    for (let ptx of packedTxs) {
+      let [isBreak, _] = await this.checkRecipt(ptx, 0);
+      if (isBreak) {
+        this.logger(
+          `## RECHECK BY getUnconfirmedTransactionsWithSameNonce hash: ${ptx.transactionHash} ${ptx.requestIds}`
+        );
+      }
+      //TODO  Some request IDs were skipped, a low-probability event occurred.
+      isHaveSuccess = isBreak || isHaveSuccess;
+    }
+    if (!isHaveSuccess) {
+      this.logger(`################isHaveSuccess===false###############`);
+      this.logger("");
     }
   }
 }

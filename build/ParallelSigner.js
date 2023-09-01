@@ -401,8 +401,34 @@ class ParallelSigner extends ethers_1.Wallet {
             return currentPrice;
         }
     }
-    checkConfirmations(nonce) {
+    checkRecipt(v, result) {
         var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            let txRcpt = yield this.getTransactionReceipt(v.transactionHash);
+            if (txRcpt != null) {
+                if (this.options.checkConfirmation &&
+                    typeof this.options.checkConfirmation === "function") {
+                    this.options.checkConfirmation(txRcpt).catch((err) => {
+                        this.loggerError("this.options.checkConfirmation");
+                        this.printLayer1ChainId();
+                        this.loggerError(err);
+                    });
+                }
+                if ((yield txRcpt.confirmations()) >= this.options.confirmations) {
+                    // Set request txid by v.txhash
+                    yield this.requestStore.updateRequestBatch(v.requestIds, v.transactionHash);
+                    // If data satisfying the confirmation requirement is found, return 0 to stop further searching
+                    result = 0;
+                }
+                // Update confirmation to db
+                yield this.requestStore.setPackedTransactionConfirmation((_a = v.id) !== null && _a !== void 0 ? _a : 0, yield txRcpt.confirmations());
+                // There can be at most one packedTx with data on the chain
+                return [true, result];
+            }
+            return [false, result];
+        });
+    }
+    checkConfirmations(nonce) {
         return __awaiter(this, void 0, void 0, function* () {
             let packedTxs = yield this.requestStore.getPackedTransaction(nonce, this.getChainId());
             if (packedTxs.length == 0) {
@@ -413,27 +439,10 @@ class ParallelSigner extends ethers_1.Wallet {
             for (let k in packedTxs) {
                 let v = packedTxs[k];
                 if (v.confirmation < this.options.confirmations) {
-                    let txRcpt = yield this.getTransactionReceipt(v.transactionHash);
-                    if (txRcpt != null) {
-                        if (this.options.checkConfirmation &&
-                            typeof this.options.checkConfirmation === "function") {
-                            this.options.checkConfirmation(txRcpt).catch((err) => {
-                                this.loggerError("this.options.checkConfirmation");
-                                this.printLayer1ChainId();
-                                this.loggerError(err);
-                            });
-                        }
-                        if ((yield txRcpt.confirmations()) >= this.options.confirmations) {
-                            // Set request txid by v.txhash
-                            yield this.requestStore.updateRequestBatch(v.requestIds, v.transactionHash);
-                            // If data satisfying the confirmation requirement is found, return 0 to stop further searching
-                            result = 0;
-                        }
-                        // Update confirmation to db
-                        yield this.requestStore.setPackedTransactionConfirmation((_a = v.id) !== null && _a !== void 0 ? _a : 0, yield txRcpt.confirmations());
-                        // There can be at most one packedTx with data on the chain
+                    let [isBreak, _result] = yield this.checkRecipt(v, result);
+                    result = _result;
+                    if (isBreak)
                         break;
-                    }
                 }
                 else {
                     result = 0; // Already found data satisfying the confirmation requirement, immediately exit the loop
@@ -467,6 +476,7 @@ class ParallelSigner extends ethers_1.Wallet {
             }
             let lastCheckedId = (_a = lastestTx.id) !== null && _a !== void 0 ? _a : 0;
             lastCheckedId += 1; // Ensure that this batch is within the check of the while loop
+            let lastCheckedNonce = lastestTx.nonce;
             while (lastCheckedId > 0) {
                 // Find the next one
                 let nextTx = yield this.requestStore.getMaxIDPackedTransaction(this.getChainId(), lastCheckedId);
@@ -480,6 +490,21 @@ class ParallelSigner extends ethers_1.Wallet {
                 }
                 // Use return 0 to interrupt the while loop
                 lastCheckedId = yield this.checkConfirmations(nextTx.nonce);
+                lastCheckedNonce = nextTx.nonce;
+            }
+            let packedTxs = yield this.requestStore.getUnconfirmedTransactionsWithSameNonce(lastCheckedNonce);
+            let isHaveSuccess = false;
+            for (let ptx of packedTxs) {
+                let [isBreak, _] = yield this.checkRecipt(ptx, 0);
+                if (isBreak) {
+                    this.logger(`## RECHECK BY getUnconfirmedTransactionsWithSameNonce hash: ${ptx.transactionHash} ${ptx.requestIds}`);
+                }
+                //TODO  Some request IDs were skipped, a low-probability event occurred.
+                isHaveSuccess = isBreak || isHaveSuccess;
+            }
+            if (!isHaveSuccess) {
+                this.logger(`################isHaveSuccess===false###############`);
+                this.logger("");
             }
         });
     }

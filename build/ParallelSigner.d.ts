@@ -28,6 +28,32 @@ export declare abstract class IOrderedRequestStore {
     abstract getPackedTransaction(nonce: number, chainId: number): Promise<PackedTransaction[]>;
     abstract getMaxIDPackedTransaction(chainId: number, maxId: number): Promise<PackedTransaction | null>;
     abstract setPackedTransactionConfirmation(id: number, confirmation: number): any;
+    /**
+     *
+     * WITH NonceWithAllZero AS (
+        SELECT
+          nonce
+        FROM
+          packed_transactions
+        WHERE
+          nonce < ${nonce}
+        GROUP BY
+          nonce
+        HAVING
+          SUM(confirmation) = 0 AND COUNT(*) > 1
+      )
+  
+      SELECT
+        p.*
+      FROM
+        packed_transactions p
+      JOIN
+        NonceWithAllZero nz ON p.nonce = nz.nonce
+      WHERE
+        p.confirmation = 0;
+  
+     */
+    abstract getUnconfirmedTransactionsWithSameNonce(nonce: number): Promise<PackedTransaction[]>;
 }
 export interface ParallelSignerOptions {
     readonly requestCountLimit: number;
@@ -83,6 +109,7 @@ export declare class ParallelSigner extends Wallet {
     private sendPackedTransaction;
     private buildTransactionRequest;
     private getFinalPrice;
+    private checkRecipt;
     checkConfirmations(nonce: number): Promise<number>;
     /**
      * Scheduled task with two purposes
