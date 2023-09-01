@@ -689,7 +689,8 @@ export class ParallelSigner extends Wallet {
       //TODO  Some request IDs were skipped, a low-probability event occurred.
       isHaveSuccess = isBreak || isHaveSuccess;
     }
-    if (!isHaveSuccess) {
+    //TODO
+    if (!isHaveSuccess && packedTxs.length > 0) {
       this.logger(`################isHaveSuccess===false###############`);
       this.logger("");
     }
