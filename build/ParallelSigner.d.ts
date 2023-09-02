@@ -36,11 +36,11 @@ export declare abstract class IOrderedRequestStore {
         FROM
           packed_transactions
         WHERE
-          nonce < ${nonce}
+          nonce < ${nonce} and chain_id= ${chain_id}
         GROUP BY
           nonce
         HAVING
-          SUM(confirmation) = 0 AND COUNT(*) > 1
+          SUM(confirmation) = 0 AND COUNT(*) >= 1
       )
   
       SELECT
@@ -50,10 +50,10 @@ export declare abstract class IOrderedRequestStore {
       JOIN
         NonceWithAllZero nz ON p.nonce = nz.nonce
       WHERE
-        p.confirmation = 0;
+        chain_id = ${chain_id}  and p.confirmation = 0;
   
      */
-    abstract getUnconfirmedTransactionsWithSameNonce(nonce: number): Promise<PackedTransaction[]>;
+    abstract getUnconfirmedTransactionsWithSameNonce(chainId: number, nonce: number): Promise<PackedTransaction[]>;
 }
 export interface ParallelSignerOptions {
     readonly requestCountLimit: number;

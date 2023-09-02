@@ -80,11 +80,11 @@ export abstract class IOrderedRequestStore {
       FROM 
         packed_transactions
       WHERE 
-        nonce < ${nonce}
+        nonce < ${nonce} and chain_id= ${chain_id}
       GROUP BY 
         nonce
       HAVING 
-        SUM(confirmation) = 0 AND COUNT(*) > 1
+        SUM(confirmation) = 0 AND COUNT(*) >= 1
     )
 
     SELECT 
@@ -94,10 +94,11 @@ export abstract class IOrderedRequestStore {
     JOIN 
       NonceWithAllZero nz ON p.nonce = nz.nonce
     WHERE 
-      p.confirmation = 0;
+      chain_id = ${chain_id}  and p.confirmation = 0;
 
    */
   abstract getUnconfirmedTransactionsWithSameNonce(
+    chainId: number,
     nonce: number
   ): Promise<PackedTransaction[]>;
 }
@@ -676,6 +677,7 @@ export class ParallelSigner extends Wallet {
 
     let packedTxs: PackedTransaction[] =
       await this.requestStore.getUnconfirmedTransactionsWithSameNonce(
+        this.getChainId(),
         lastCheckedNonce
       );
     let isHaveSuccess = false;

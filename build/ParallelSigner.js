@@ -492,7 +492,7 @@ class ParallelSigner extends ethers_1.Wallet {
                 lastCheckedId = yield this.checkConfirmations(nextTx.nonce);
                 lastCheckedNonce = nextTx.nonce;
             }
-            let packedTxs = yield this.requestStore.getUnconfirmedTransactionsWithSameNonce(lastCheckedNonce);
+            let packedTxs = yield this.requestStore.getUnconfirmedTransactionsWithSameNonce(this.getChainId(), lastCheckedNonce);
             let isHaveSuccess = false;
             for (let ptx of packedTxs) {
                 let [isBreak, _] = yield this.checkRecipt(ptx, 0);
