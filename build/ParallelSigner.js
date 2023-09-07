@@ -419,9 +419,9 @@ class ParallelSigner extends ethers_1.Wallet {
                     yield this.requestStore.updateRequestBatch(v.requestIds, v.transactionHash);
                     // If data satisfying the confirmation requirement is found, return 0 to stop further searching
                     result = 0;
+                    // Update confirmation to db
+                    yield this.requestStore.setPackedTransactionConfirmation((_a = v.id) !== null && _a !== void 0 ? _a : 0, yield txRcpt.confirmations());
                 }
-                // Update confirmation to db
-                yield this.requestStore.setPackedTransactionConfirmation((_a = v.id) !== null && _a !== void 0 ? _a : 0, yield txRcpt.confirmations());
                 // There can be at most one packedTx with data on the chain
                 return [true, result];
             }
@@ -504,8 +504,11 @@ class ParallelSigner extends ethers_1.Wallet {
             }
             //TODO
             if (!isHaveSuccess && packedTxs.length > 0) {
-                this.logger(`################isHaveSuccess===false###############`);
-                this.logger("");
+                this.logger(`################isHaveSuccess===false chainID: ${this.getChainId()} ###############`);
+                const ids = packedTxs.map((ptx) => ptx.id).join(",");
+                const requestIds = packedTxs.map((ptx) => ptx.requestIds).join(",");
+                this.logger(`packedTxs-ids: ${ids}`);
+                this.logger(`packedTxs-requestIds: ${requestIds}`);
             }
         });
     }

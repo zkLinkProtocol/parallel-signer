@@ -592,12 +592,12 @@ export class ParallelSigner extends Wallet {
         );
         // If data satisfying the confirmation requirement is found, return 0 to stop further searching
         result = 0;
+        // Update confirmation to db
+        await this.requestStore.setPackedTransactionConfirmation(
+          v.id ?? 0,
+          await txRcpt.confirmations()
+        );
       }
-      // Update confirmation to db
-      await this.requestStore.setPackedTransactionConfirmation(
-        v.id ?? 0,
-        await txRcpt.confirmations()
-      );
       // There can be at most one packedTx with data on the chain
       return [true, result];
     }
@@ -693,8 +693,14 @@ export class ParallelSigner extends Wallet {
     }
     //TODO
     if (!isHaveSuccess && packedTxs.length > 0) {
-      this.logger(`################isHaveSuccess===false###############`);
-      this.logger("");
+      this.logger(
+        `################isHaveSuccess===false chainID: ${this.getChainId()} ###############`
+      );
+      const ids = packedTxs.map((ptx) => ptx.id).join(",");
+      const requestIds = packedTxs.map((ptx) => ptx.requestIds).join(",");
+
+      this.logger(`packedTxs-ids: ${ids}`);
+      this.logger(`packedTxs-requestIds: ${requestIds}`);
     }
   }
 }
