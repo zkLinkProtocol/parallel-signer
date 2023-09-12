@@ -31,6 +31,8 @@ export interface PackedTransaction {
   gasPrice: string;
   requestIds: number[];
   confirmation: number;
+  effectiveGasPrice?: string;
+  gasUsed?: string;
   createdAt?: number;
 }
 
@@ -71,6 +73,12 @@ export abstract class IOrderedRequestStore {
   ): Promise<PackedTransaction | null>;
 
   abstract setPackedTransactionConfirmation(id: number, confirmation: number);
+
+  abstract setPackedTransactionGasPriceAndGasUsed(
+    id: number,
+    effectiveGasPrice: string,
+    gasUsed: string
+  );
 
   /**
    * 
@@ -513,8 +521,37 @@ export class ParallelSigner extends Wallet {
       nonce
     );
     if (latestPackedTx === null) {
-      //first tx
+      //first tx used this nonce
+      if (nonce >= 1) {
+        //TODO @Tryal get tx receipt of nonce - 1 , get actual gas price
+        let lastNoncePackedTxs = await this.requestStore.getPackedTransaction(
+          nonce - 1,
+          this.getChainId()
+        );
+        const lastNoncePtx = lastNoncePackedTxs.find((v) => !!v.gasUsed);
+        if (lastNoncePtx !== undefined) {
+          if (notNil(maxFeePerGas) && notNil(maxPriorityFeePerGas)) {
+            rtx.maxFeePerGas = this.getFinalPrice(
+              BigInt(maxFeePerGas),
+              (BigInt(lastNoncePtx.maxFeePerGas) * BigInt(9)) / BigInt(10)
+            );
+            rtx.maxPriorityFeePerGas = this.getFinalPrice(
+              BigInt(maxPriorityFeePerGas),
+              (BigInt(lastNoncePtx.maxPriorityFeePerGas) * BigInt(9)) /
+                BigInt(10)
+            );
+          } else if (notNil(gasPrice) != null) {
+            rtx.gasPrice = this.getFinalPrice(
+              BigInt(gasPrice),
+              (BigInt(lastNoncePtx.gasPrice) * BigInt(9)) / BigInt(10)
+            );
+          } else {
+            throw new Error("gas price error");
+          }
 
+          return rtx;
+        }
+      }
       if (notNil(maxFeePerGas) && notNil(maxPriorityFeePerGas)) {
         rtx.maxFeePerGas = maxFeePerGas;
         rtx.maxPriorityFeePerGas = maxPriorityFeePerGas;
@@ -573,6 +610,7 @@ export class ParallelSigner extends Wallet {
   ): Promise<[boolean, number]> {
     let txRcpt = await this.getTransactionReceipt(v.transactionHash);
     if (txRcpt != null) {
+      const confirmations = await txRcpt.confirmations();
       if (
         this.options.checkConfirmation &&
         typeof this.options.checkConfirmation === "function"
@@ -584,7 +622,7 @@ export class ParallelSigner extends Wallet {
         });
       }
 
-      if ((await txRcpt.confirmations()) >= this.options.confirmations) {
+      if (confirmations >= this.options.confirmations) {
         // Set request txid by v.txhash
         await this.requestStore.updateRequestBatch(
           v.requestIds,
@@ -595,9 +633,22 @@ export class ParallelSigner extends Wallet {
         // Update confirmation to db
         await this.requestStore.setPackedTransactionConfirmation(
           v.id ?? 0,
-          await txRcpt.confirmations()
+          confirmations
         );
       }
+
+      if (
+        this.requestStore.setPackedTransactionGasPriceAndGasUsed &&
+        typeof this.requestStore.setPackedTransactionGasPriceAndGasUsed ===
+          "function"
+      ) {
+        await this.requestStore.setPackedTransactionGasPriceAndGasUsed(
+          v.id ?? 0,
+          txRcpt.gasPrice.toString(),
+          txRcpt.gasUsed.toString()
+        );
+      }
+
       // There can be at most one packedTx with data on the chain
       return [true, result];
     }
