@@ -17,6 +17,8 @@ export interface PackedTransaction {
     gasPrice: string;
     requestIds: number[];
     confirmation: number;
+    effectiveGasPrice?: string;
+    gasUsed?: string;
     createdAt?: number;
 }
 export declare abstract class IOrderedRequestStore {
@@ -28,6 +30,7 @@ export declare abstract class IOrderedRequestStore {
     abstract getPackedTransaction(nonce: number, chainId: number): Promise<PackedTransaction[]>;
     abstract getMaxIDPackedTransaction(chainId: number, maxId: number): Promise<PackedTransaction | null>;
     abstract setPackedTransactionConfirmation(id: number, confirmation: number): any;
+    abstract setPackedTransactionGasPriceAndGasUsed(id: number, effectiveGasPrice: string, gasUsed: string): any;
     /**
      *
      * WITH NonceWithAllZero AS (

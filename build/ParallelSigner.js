@@ -356,7 +356,26 @@ class ParallelSigner extends ethers_1.Wallet {
             // Get the latest packed transaction for the given nonce and chainId
             let latestPackedTx = yield this.requestStore.getLatestPackedTransaction(this.getChainId(), nonce);
             if (latestPackedTx === null) {
-                //first tx
+                //first tx used this nonce
+                if (nonce >= 1) {
+                    //TODO @Tryal get tx receipt of nonce - 1 , get actual gas price
+                    let lastNoncePackedTxs = yield this.requestStore.getPackedTransaction(nonce - 1, this.getChainId());
+                    const lastNoncePtx = lastNoncePackedTxs.find((v) => !!v.gasUsed);
+                    if (lastNoncePtx !== undefined) {
+                        if (notNil(maxFeePerGas) && notNil(maxPriorityFeePerGas)) {
+                            rtx.maxFeePerGas = this.getFinalPrice(BigInt(maxFeePerGas), (BigInt(lastNoncePtx.maxFeePerGas) * BigInt(9)) / BigInt(10));
+                            rtx.maxPriorityFeePerGas = this.getFinalPrice(BigInt(maxPriorityFeePerGas), (BigInt(lastNoncePtx.maxPriorityFeePerGas) * BigInt(9)) /
+                                BigInt(10));
+                        }
+                        else if (notNil(gasPrice) != null) {
+                            rtx.gasPrice = this.getFinalPrice(BigInt(gasPrice), (BigInt(lastNoncePtx.gasPrice) * BigInt(9)) / BigInt(10));
+                        }
+                        else {
+                            throw new Error("gas price error");
+                        }
+                        return rtx;
+                    }
+                }
                 if (notNil(maxFeePerGas) && notNil(maxPriorityFeePerGas)) {
                     rtx.maxFeePerGas = maxFeePerGas;
                     rtx.maxPriorityFeePerGas = maxPriorityFeePerGas;
@@ -402,10 +421,11 @@ class ParallelSigner extends ethers_1.Wallet {
         }
     }
     checkRecipt(v, result) {
-        var _a;
+        var _a, _b;
         return __awaiter(this, void 0, void 0, function* () {
             let txRcpt = yield this.getTransactionReceipt(v.transactionHash);
             if (txRcpt != null) {
+                const confirmations = yield txRcpt.confirmations();
                 if (this.options.checkConfirmation &&
                     typeof this.options.checkConfirmation === "function") {
                     this.options.checkConfirmation(txRcpt).catch((err) => {
@@ -414,13 +434,18 @@ class ParallelSigner extends ethers_1.Wallet {
                         this.loggerError(err);
                     });
                 }
-                if ((yield txRcpt.confirmations()) >= this.options.confirmations) {
+                if (confirmations >= this.options.confirmations) {
                     // Set request txid by v.txhash
                     yield this.requestStore.updateRequestBatch(v.requestIds, v.transactionHash);
                     // If data satisfying the confirmation requirement is found, return 0 to stop further searching
                     result = 0;
                     // Update confirmation to db
-                    yield this.requestStore.setPackedTransactionConfirmation((_a = v.id) !== null && _a !== void 0 ? _a : 0, yield txRcpt.confirmations());
+                    yield this.requestStore.setPackedTransactionConfirmation((_a = v.id) !== null && _a !== void 0 ? _a : 0, confirmations);
+                }
+                if (this.requestStore.setPackedTransactionGasPriceAndGasUsed &&
+                    typeof this.requestStore.setPackedTransactionGasPriceAndGasUsed ===
+                        "function") {
+                    yield this.requestStore.setPackedTransactionGasPriceAndGasUsed((_b = v.id) !== null && _b !== void 0 ? _b : 0, txRcpt.gasPrice.toString(), txRcpt.gasUsed.toString());
                 }
                 // There can be at most one packedTx with data on the chain
                 return [true, result];
